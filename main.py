@@ -16,7 +16,7 @@ class Particle(object):
         self.pos = rand_vec() if pos is None else pos
         self.velocity = (rand_vec() - 0.5)* 0.005 if velocity is None else velocity
 
-    def update(self, dt, particles):
+    def update(self, dt, particles, g):
         self.velocity[1] += dt * g
         self.pos += self.velocity
 
@@ -71,7 +71,7 @@ class Crate(object):
             self.handle_input()
             dt = self.clock.tick(self.target_frame_rate) * self.time_pace
             buffer = np.zeros((self.SCREEN_X, self.SCREEN_Y))
-            [particle.update(dt) for particle in self.particles]
+            [particle.update(dt, self.particles, self.g) for particle in self.particles]
             for particle in self.particles:
                 buffer[self.get_particle_location(particle)] = 1
             buffer = 255 * buffer / buffer.max()
