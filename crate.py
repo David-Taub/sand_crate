@@ -1,5 +1,6 @@
 import numpy as np
-from nptyping import NDArray
+
+from typings import Particles
 
 DT = 0.005
 R = 0.01
@@ -13,7 +14,6 @@ TENSILE_BETA = 3  # droplets factor
 TARGET_FRAME_RATE = 120
 PARTICLE_COUNT = 500
 MAX_COLLIDERS = 6
-Particles = NDArray  # X Y Vx Vy
 
 
 class Crate:
