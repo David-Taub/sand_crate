@@ -2,15 +2,16 @@
 # pr = cProfile.Profile()
 # pr.enable()
 
-import pygame
-import time
-import random
 import numpy as np
+import pygame
+
+
 # import numpy.linalg
 
 
 def rand_vec():
     return np.random.rand(2)
+
 
 DT = 0.005
 R = 0.01
@@ -21,14 +22,13 @@ PRESSURE_AMPLIFIER = 7
 IGNORED_PRESSURE = 0.1
 VISCOSITY = 2
 TENSILE_ALPHA = 5
-TENSILE_BETA = 3 #droplets factor
+TENSILE_BETA = 3  # droplets factor
 
 TARGET_FRAME_RATE = 120
 PARTICLE_COUNT = 500
 MAX_COLLIDERS = 6
 SCREEN_X = 500
 SCREEN_Y = 500
-
 
 
 class Crate(object):
@@ -42,15 +42,13 @@ class Crate(object):
         self.colliders_indice = [[]] * PARTICLE_COUNT
         self.gen_particles()
 
-
     def gen_particles(self):
         self.particles = np.zeros((PARTICLE_COUNT, 8))
         # random position [0, 1) and velocities[-1, 1] on startup
         self.particles[:, 0: 2] = np.random.rand(PARTICLE_COUNT, 4)
 
-
     def get_particle_location(self, x, y):
-        return int(x * (SCREEN_X-1)), int(y * (SCREEN_Y-1))
+        return int(x * (SCREEN_X - 1)), int(y * (SCREEN_Y - 1))
 
     def handle_input(self):
         for event in pygame.event.get():
@@ -68,7 +66,6 @@ class Crate(object):
             if event.type == pygame.QUIT:
                 self.done = True
 
-
     def physics_tick(self):
 
         self.detect_collisions()
@@ -76,7 +73,6 @@ class Crate(object):
         self.copy_to_colliders_mats()
         self.apply_velocities_updates()
         self.apply_positions_updates()
-
 
     def display_particles(self):
         BLUE = (0, 0, 255)
@@ -89,7 +85,7 @@ class Crate(object):
         for i in range(self.particles.shape[0]):
             center = self.get_particle_location(self.particles[i, 0], self.particles[i, 1])
             color = (255 - int(self.particles[i, 5] * 255), 255 - int(self.particles[i, 5] * 255), 255)
-            pygame.draw.circle(self.screen, color , center, p_rad)
+            pygame.draw.circle(self.screen, color, center, p_rad)
             # buffer[center[0] - p_rad: center[0] + p_rad, center[1] - p_rad: center[1] + p_rad] = 1
         # buffer = 255 * buffer / buffer.max()
         # surf = pygame.surfarray.make_surface(buffer)
@@ -117,7 +113,8 @@ class Crate(object):
                     next_end = np.searchsorted(next_strip, x + DIAMETER, side='right')
                     new_indices = [k for k in range(unique_inds[i + 1] + next_start, unique_inds[i + 1] + next_end)]
                     too_far = ((self.particles[new_indices, 0] - self.particles[unique_inds[i] + j, 0]) ** 2
-                              + (self.particles[new_indices, 1] - self.particles[unique_inds[i] + j, 1]) ** 2) <= DIAMETER ** 2
+                               + (self.particles[new_indices, 1] - self.particles[
+                                unique_inds[i] + j, 1]) ** 2) <= DIAMETER ** 2
                     new_indices = [k for t, k in enumerate(new_indices) if too_far[t]]
                     j_colliders += new_indices
                 self.colliders_indice[unique_inds[i] + j] = j_colliders[:MAX_COLLIDERS]
@@ -135,25 +132,33 @@ class Crate(object):
         if self.particles[i, 0] <= R:
             virtual_particle = np.zeros((1, 9))
             virtual_particle[0, 0] = DIAMETER * WALL_FAKE_OVERLAP
-            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP, (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER, DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP), 0]
+            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP,
+                                         (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER,
+                                         DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP), 0]
             self.colliders[i] = np.vstack([self.colliders[i], virtual_particle])
 
         if self.particles[i, 0] >= 1 - R:
             virtual_particle = np.zeros((1, 9))
             virtual_particle[0, 0] = -DIAMETER * WALL_FAKE_OVERLAP
-            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP, (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER, -DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP), 0]
+            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP,
+                                         (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER,
+                                         -DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP), 0]
             self.colliders[i] = np.vstack([self.colliders[i], virtual_particle])
 
         if self.particles[i, 1] <= R:
             virtual_particle = np.zeros((1, 9))
             virtual_particle[0, 1] = DIAMETER * WALL_FAKE_OVERLAP
-            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP, (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER, 0, DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP)]
+            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP,
+                                         (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER, 0,
+                                         DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP)]
             self.colliders[i] = np.vstack([self.colliders[i], virtual_particle])
 
         if self.particles[i, 1] >= 1 - R:
             virtual_particle = np.zeros((1, 9))
             virtual_particle[0, 1] = -DIAMETER * WALL_FAKE_OVERLAP
-            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP, (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER, 0, -DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP)]
+            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP,
+                                         (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER, 0,
+                                         -DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP)]
             self.colliders[i] = np.vstack([self.colliders[i], virtual_particle])
 
     def precalc_colliders_interaction(self):
@@ -170,7 +175,7 @@ class Crate(object):
 
             ontop_mask = np.logical_and(self.colliders[i][:, 0] == 0, self.colliders[i][:, 1] == 0)
             if np.sum(ontop_mask) > 0:
-                self.colliders[i][ontop_mask, 0: 2] = (np.random.rand(1,2) - 0.5) * ONTOP_FAKE_DISTANCE * DIAMETER
+                self.colliders[i][ontop_mask, 0: 2] = (np.random.rand(1, 2) - 0.5) * ONTOP_FAKE_DISTANCE * DIAMETER
 
             self.colliders[i][:, 2] = np.sqrt(self.colliders[i][:, 0] ** 2 + self.colliders[i][:, 1] ** 2)
             self.colliders[i][:, 0: 2] /= self.colliders[i][:, 2: 3]  # normalized repel from collider
@@ -178,14 +183,15 @@ class Crate(object):
             self.colliders[i][:, 2] = np.minimum(1, np.maximum(0, self.colliders[i][:, 2]))  # collider particle overlap
             self.particles[i, 4] = np.sum(self.colliders[i][:, 2], 0)  # total overlap
             # assert np.all(self.particles[i, 4] >= 0)
-            self.particles[i, 5] = np.maximum(0, (self.particles[i, 4] - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER)  # pressure
+            self.particles[i, 5] = np.maximum(0, (
+                    self.particles[i, 4] - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER)  # pressure
             # mid-range pressure
-            self.particles[i, 6: 8] = np.sum(self.colliders[i][:, 0: 2] * (1 - self.colliders[i][:, 2: 3]) * (self.colliders[i][:, 2: 3]), 0)
+            self.particles[i, 6: 8] = np.sum(
+                self.colliders[i][:, 0: 2] * (1 - self.colliders[i][:, 2: 3]) * (self.colliders[i][:, 2: 3]), 0)
 
     def copy_to_colliders_mats(self):
         for i in range(PARTICLE_COUNT):
-            self.colliders[i][0: len(self.colliders_indice[i]), 3 : 9] = self.particles[self.colliders_indice[i], 2: 8]
-
+            self.colliders[i][0: len(self.colliders_indice[i]), 3: 9] = self.particles[self.colliders_indice[i], 2: 8]
 
     def apply_velocities_updates(self):
         # gravity
@@ -195,17 +201,19 @@ class Crate(object):
                 continue
 
             # pressure - dt * (particle_presure + collider_presure) * collider_relative_overlap * normalized_repel
-            self.particles[i, 2: 4] += DT * np.sum((self.particles[i, 5: 6] + self.colliders[i][:, 6: 7]) * self.colliders[i][:, 2: 3] * self.colliders[i][:, 0: 2], 0)
+            self.particles[i, 2: 4] += DT * np.sum(
+                (self.particles[i, 5: 6] + self.colliders[i][:, 6: 7]) * self.colliders[i][:, 2: 3] * self.colliders[i][
+                                                                                                      :, 0: 2], 0)
             # viscosity
             self.particles[i, 2: 4] += DT * VISCOSITY * np.sum(self.colliders[i][:, 3: 5] - self.particles[i, 2: 4], 0)
             # surface tension
             a = TENSILE_ALPHA * (self.particles[i, 4] + self.colliders[i][:, 5: 6] - 2 * IGNORED_PRESSURE)
-            b = TENSILE_BETA * (np.sum((self.colliders[i][:, 7: 9] - self.particles[i, 6: 8]) * self.colliders[i][:, 0: 2], 1)[:, None])
+            b = TENSILE_BETA * (
+                np.sum((self.colliders[i][:, 7: 9] - self.particles[i, 6: 8]) * self.colliders[i][:, 0: 2], 1)[:, None])
             self.particles[i, 2: 4] += DT * np.sum(self.colliders[i][:, 0: 2] * (a + b), 0)
 
     def apply_positions_updates(self):
         self.particles[:, 0: 2] += DT * self.particles[:, 2: 4]
-
 
         # self.particles[np.logical_or(self.particles[:, 0] <= 0, self.particles[:, 0] >= 1), 2] *= -ELASTICITY
         # self.particles[np.logical_or(self.particles[:, 1] <= 0, self.particles[:, 1] >= 1), 3] *= -ELASTICITY
@@ -224,7 +232,6 @@ class Crate(object):
         pygame.quit()
 
 
-
 crate = Crate()
 crate.run_main_loop()
 
@@ -234,4 +241,3 @@ crate.run_main_loop()
 # ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
 # ps.print_stats()
 # print(s.getvalue())
-
