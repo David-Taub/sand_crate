@@ -1,4 +1,3 @@
-import NPArray as NPArray
 import numpy as np
 
 DT = 0.005
@@ -19,7 +18,7 @@ class Crate:
     gravity = np.array([0.0, 9.81])
 
     def __init__(self) -> None:
-        self.particles: NPArray[float]
+        self.particles: NDArray[float]
         self.colliders = [None] * PARTICLE_COUNT
         self.colliders_indices = [[]] * PARTICLE_COUNT
         self.gen_particles()
