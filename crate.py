@@ -1,4 +1,5 @@
 import numpy as np
+from nptyping import NDArray
 
 DT = 0.005
 R = 0.01
@@ -12,21 +13,22 @@ TENSILE_BETA = 3  # droplets factor
 TARGET_FRAME_RATE = 120
 PARTICLE_COUNT = 500
 MAX_COLLIDERS = 6
+Particles = NDArray  # X Y Vx Vy
 
 
 class Crate:
     gravity = np.array([0.0, 9.81])
 
     def __init__(self) -> None:
-        self.particles: NDArray[float]
+        self.particles: Particles
         self.colliders = [None] * PARTICLE_COUNT
         self.colliders_indices = [[]] * PARTICLE_COUNT
         self.gen_particles()
+        self.particles = np.zeros((PARTICLE_COUNT, 8))
 
     def gen_particles(self) -> None:
         self.particles = np.zeros((PARTICLE_COUNT, 8))
-        # random position [0, 1) and velocities[-1, 1] on startup
-        self.particles[:, 0: 2] = np.random.rand(PARTICLE_COUNT, 4)
+        self.particles[:, 0: 2] = np.random.rand(PARTICLE_COUNT, 2)
 
     def physics_tick(self):
 
@@ -38,30 +40,32 @@ class Crate:
 
     def detect_collisions(self):
         y_floored = np.floor(self.particles[:, 1] / DIAMETER)
-        sorted_inds = np.lexsort((self.particles[:, 0], y_floored))
-        self.particles = self.particles[sorted_inds, :]
-        y_floored = y_floored[sorted_inds]
-        unique_ys, unique_inds = np.unique(y_floored, return_index=True)
-        unique_inds = np.append(unique_inds, len(y_floored))
-        next_strip = self.particles[unique_inds[0]: unique_inds[1], 0]
-        for i in range(len(unique_inds) - 1):
+        sorted_indices = np.lexsort((self.particles[:, 0], y_floored))
+        self.particles = self.particles[sorted_indices, :]
+        y_floored = y_floored[sorted_indices]
+        unique_ys, unique_indices = np.unique(y_floored, return_index=True)
+        unique_indices = np.append(unique_indices, len(y_floored))
+        next_strip = self.particles[unique_indices[0]: unique_indices[1], 0]
+        for i in range(len(unique_indices) - 1):
             strip = next_strip
-            # strip = self.particles[unique_inds[i]: unique_inds[i + 1], 1]
-            next_strip = [] if i == len(unique_inds) - 2 else self.particles[unique_inds[i + 1]: unique_inds[i + 2], 0]
+            # strip = self.particles[unique_indices[i]: unique_indices[i + 1], 1]
+            next_strip = [] if i == len(unique_indices) - 2 else self.particles[
+                                                                 unique_indices[i + 1]: unique_indices[i + 2], 0]
             for j, x in enumerate(strip):
                 end = np.searchsorted(strip, x + DIAMETER, side='right')
-                j_colliders = [k for k in range(unique_inds[i] + j + 1, unique_inds[i] + end)]
+                j_colliders = [k for k in range(unique_indices[i] + j + 1, unique_indices[i] + end)]
 
                 if i + 1 < len(unique_ys) and unique_ys[i] + 1 == unique_ys[i + 1]:
                     next_start = np.searchsorted(next_strip, x - DIAMETER, side='left')
                     next_end = np.searchsorted(next_strip, x + DIAMETER, side='right')
-                    new_indices = [k for k in range(unique_inds[i + 1] + next_start, unique_inds[i + 1] + next_end)]
-                    too_far = ((self.particles[new_indices, 0] - self.particles[unique_inds[i] + j, 0]) ** 2
+                    new_indices = [k for k in
+                                   range(unique_indices[i + 1] + next_start, unique_indices[i + 1] + next_end)]
+                    too_far = ((self.particles[new_indices, 0] - self.particles[unique_indices[i] + j, 0]) ** 2
                                + (self.particles[new_indices, 1] - self.particles[
-                                unique_inds[i] + j, 1]) ** 2) <= DIAMETER ** 2
+                                unique_indices[i] + j, 1]) ** 2) <= DIAMETER ** 2
                     new_indices = [k for t, k in enumerate(new_indices) if too_far[t]]
                     j_colliders += new_indices
-                self.colliders_indices[unique_inds[i] + j] = j_colliders[:MAX_COLLIDERS]
+                self.colliders_indices[unique_indices[i] + j] = j_colliders[:MAX_COLLIDERS]
         self.reverse_link_colliders()
 
     def reverse_link_colliders(self):
