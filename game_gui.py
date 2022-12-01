@@ -1,7 +1,7 @@
 import numpy as np
 import pygame
 
-from crate import Crate, R, TARGET_FRAME_RATE
+from crate import Crate, PARTICLE_RADIUS, TARGET_FRAME_RATE
 
 SCREEN_X = 500
 SCREEN_Y = 500
@@ -33,7 +33,7 @@ class GameGUI:
 
     def display_particles(self):
         BLACK = (0, 0, 0)
-        p_rad = int(SCREEN_X * R)
+        p_rad = int(SCREEN_X * PARTICLE_RADIUS)
         self.screen.fill(BLACK)
         particles = self.crate.particles
 
