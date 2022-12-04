@@ -3,7 +3,7 @@ import numpy as np
 from typings import Particles, Distances
 
 
-def lineseg_dists(p: Particles, a: Particles, b: Particles) -> Distances:
+def points_to_segments_distance(p: Particles, a: Particles, b: Particles) -> Distances:
     """Cartesian distance from point to line segment
 
     Edited to support arguments as series, from:
