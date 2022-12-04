@@ -16,7 +16,7 @@ TARGET_FRAME_RATE = 120
 PARTICLE_COUNT = 500
 NOISE_LEVEL = 0.2
 ONTOP_FAKE_DISTANCE = 0.9
-
+WALL_FAKE_OVERLAP = 0.9
 
 class Crate:
     gravity = np.array([0.0, 9.81])
@@ -41,7 +41,7 @@ class Crate:
         self.apply_positions_updates()
 
     def add_wall_virtual_colliders(self, i):
-        WALL_FAKE_OVERLAP = 0.9
+
         if self.particles[i, 0] <= PARTICLE_RADIUS:
             virtual_particle = np.zeros((1, 9))
             virtual_particle[0, 0] = DIAMETER * WALL_FAKE_OVERLAP
@@ -75,10 +75,10 @@ class Crate:
             self.colliders[i] = np.vstack([self.colliders[i], virtual_particle])
 
     def populate_collider_positions(self):
+        self.colliders = []
         for i in range(self.particles.shape[0]):
-            self.colliders[i] = np.zeros((len(self.colliders_indices[i]), 2))
-            self.colliders[i] = self.particles[i] - self.particles[self.colliders_indices[i]]
-            self.colliders[i] += (np.random.rand(self.colliders[i].shape[0], 2) - 0.5) * DIAMETER * NOISE_LEVEL
+            particle_colliders = self.particles[i] - self.particles[self.colliders_indices[i]]
+            # particle_colliders += (np.random.rand(self.colliders[i].shape[0], 2) - 0.5) * DIAMETER * NOISE_LEVEL
             self.add_wall_virtual_colliders(i)
 
     def precalc_colliders_interaction(self):
@@ -89,7 +89,7 @@ class Crate:
             # if np.sum(ontop_mask) > 0:
             #     self.colliders[i][ontop_mask, 0: 2] = (np.random.rand(1, 2) - 0.5) * ONTOP_FAKE_DISTANCE * DIAMETER
 
-            colliders_distance = np.sqrt(self.colliders[i][:, 0] ** 2 + self.colliders[i][:, 1] ** 2)
+            colliders_distance = np.hypot(self.colliders[i][:, 0] + self.colliders[i][:, 1]).reshape(-1, 1)
             self.colliders[i] /= colliders_distance  # normalized repel from collider
             colliders_distance_normalized = np.minimum(1, np.maximum(0,
                                                                      1 - colliders_distance / DIAMETER))  # collider particle overlap
@@ -109,14 +109,14 @@ class Crate:
         for i in range(PARTICLE_COUNT):
             if self.colliders[i].shape[0] == 0:
                 continue
+            self.particles_velocities[i] += DT * VISCOSITY * np.sum(
+                self.colliders[i][:, 3: 5] - self.particles_velocities[i], 0)
 
             # # pressure - dt * (particle_presure + collider_presure) * collider_relative_overlap * normalized_repel
             # self.particles_velocities[i] += DT * np.sum(
             #     (self.particles[i, 5: 6] + self.colliders[i][:, 6: 7]) * self.colliders[i][:, 2: 3] * self.colliders[i][
             #                                                                                           :, 0: 2], 0)
             # viscosity
-            self.particles_velocities[i] += DT * VISCOSITY * np.sum(
-                self.colliders[i][:, 3: 5] - self.particles_velocities[i], 0)
             # # surface tension
             # a = TENSILE_ALPHA * (self.particles[i, 4] + self.colliders[i][:, 5: 6] - 2 * IGNORED_PRESSURE)
             # b = TENSILE_BETA * (
