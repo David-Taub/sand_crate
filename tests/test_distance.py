@@ -3,16 +3,15 @@ import numpy as np
 from neighbor_detector import detect_particle_neighbors
 from src.geometry_utils import points_to_segments_distance
 
-PARTICLES_COUNT = 5
-SEGMENTS_COUNT = 3
+PARTICLES_COUNT = 15
+SEGMENTS_COUNT = 5
 
 
 def test_lin_distance():
     p = np.array([[i, 0] for i in range(PARTICLES_COUNT)])
-    a = np.array([[i, 1] for i in range(SEGMENTS_COUNT)])
-    b = np.array([[i, -1] for i in range(SEGMENTS_COUNT)])
+    segments = np.array([[[i, -1], [i, 1]] for i in range(SEGMENTS_COUNT)])
 
-    distances = points_to_segments_distance(p, a, b)
+    points, distances = points_to_segments_distance(p, segments)
 
     assert distances.shape == (PARTICLES_COUNT, SEGMENTS_COUNT)
     for i in range(SEGMENTS_COUNT):

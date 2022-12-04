@@ -1,19 +1,19 @@
 import numpy as np
 
-from typings import Particles, Distances
+from typings import Particles
 
 
-def points_to_segments_distance(p: Particles, a: Particles, b: Particles) -> Distances:
+def points_to_segments_distance(p: Particles, segments):
     """Cartesian distance from point to line segment
 
     Edited to support arguments as series, from:
     https://stackoverflow.com/a/54442561/11208892
-
-    a *-----------------------* b
-       \                 ___/
-        \           ___/
-         \     ___/
-          \  /
+           d
+    a *----+------------------* b
+       \   |             ___/
+        \  | dist   ___/
+         \ |   ___/
+          \| /
            *
             P
 
@@ -22,35 +22,18 @@ def points_to_segments_distance(p: Particles, a: Particles, b: Particles) -> Dis
         - a: np.array of shape (N, 2)
         - b: np.array of shape (N, 2)
     """
-    K = p.shape[0]
-    N = a.shape[0]
-    # normalized tangent vectors
-    # N x 2
-    d_ba = b - a
-    # N x 2
-    d = np.divide(d_ba, (np.hypot(d_ba[:, 0], d_ba[:, 1]).reshape(-1, 1)))
-
-    # signed parallel distance components
-    # rowwise dot products of 2D vectors
-    # N x K x 2
-    p_r = np.repeat(p[:, :, np.newaxis], N, axis=2).transpose((0, 2, 1))
-    a_r = np.repeat(a[:, :, np.newaxis], K, axis=2).transpose((2, 0, 1))
-    b_r = np.repeat(b[:, :, np.newaxis], K, axis=2).transpose((2, 0, 1))
-    d_r = np.repeat(d[:, :, np.newaxis], K, axis=2).transpose((2, 0, 1))
-
-    # N x K
-    s = ((a_r - p_r) * d_r).sum(axis=2)
-    t = ((p_r - b_r) * d_r).sum(axis=2)
-
-    # N x K
-    # clamped parallel distance
-    h = np.maximum.reduce([s, t, np.zeros(s.shape)])
-
-    # perpendicular distance component
-    # rowwise cross products of 2D vectors
-    # N x K x 2
-    d_pa = p_r - a_r
-    # N x K x 2
-    c = d_pa[:, :, 0] * d_r[:, :, 1] - d_pa[:, :, 1] * d_r[:, :, 0]
-
-    return np.hypot(h, c)
+    a = segments[:, 0, :]
+    b = segments[:, 1, :]
+    # 1 x N x 2
+    ab = (b - a)[None]
+    # K x N x 2
+    ap = p[:, None] - a[None]
+    projected_p = ap * ab
+    # K x N
+    rate_projected_p = projected_p.sum(2) / (ab * ab).sum(2)
+    nx = np.clip(rate_projected_p, 0, 1)
+    # K x N x 2
+    d = ab * nx[:, :, None] + a[None]
+    pd = d - p[:, None]
+    distance = np.hypot(pd[:, :, 0], pd[:, :, 1])
+    return d, distance

@@ -1,5 +1,6 @@
 import numpy as np
 
+from geometry_utils import points_to_segments_distance
 from neighbor_detector import detect_particle_neighbors
 from typings import Particles
 
@@ -17,6 +18,8 @@ PARTICLE_COUNT = 500
 NOISE_LEVEL = 0.2
 ONTOP_FAKE_DISTANCE = 0.9
 WALL_FAKE_OVERLAP = 0.9
+WALL_INTERACTION_DISTANCE = PARTICLE_RADIUS
+
 
 class Crate:
     gravity = np.array([0.0, 9.81])
@@ -24,98 +27,99 @@ class Crate:
     def __init__(self) -> None:
         self.particles: Particles
         self.colliders: Particles
+        # N x 2 x 2
+        self.segments = np.array([
+            [[0.0, 0.0], [0.0, 1.0]],
+            [[0.0, 0.0], [1.0, 0.0]],
+            [[1.0, 0.0], [1.0, 1.0]],
+            [[0.0, 1.0], [1.0, 1.0]],
+        ])
         self.colliders_indices = [[]] * PARTICLE_COUNT
         self.gen_particles()
         self.particles = np.random.rand(PARTICLE_COUNT, 2)
-        self.particles_velocities = np.zeros((PARTICLE_COUNT, 2))
+        self.particle_velocities = np.zeros((PARTICLE_COUNT, 2))
+        self.particles_weights = np.ones(PARTICLE_COUNT)
 
     def gen_particles(self) -> None:
         self.particles = np.random.rand(PARTICLE_COUNT, 2)
-        self.particles_velocities = np.zeros((PARTICLE_COUNT, 2))
+        self.particle_velocities = np.zeros((PARTICLE_COUNT, 2))
 
     def physics_tick(self):
         self.colliders_indices = detect_particle_neighbors(particles=self.particles, diameter=DIAMETER)
-        self.precalc_colliders_interaction()
-        # self.copy_to_colliders_mats()
-        self.apply_velocities_updates()
-        self.apply_positions_updates()
+        self.populate_colliders()
+        self.compute_particle_pressures()
 
-    def add_wall_virtual_colliders(self, i):
+        self.apply_pressure()
+        self.apply_viscocity()
+        self.apply_velocity()
 
-        if self.particles[i, 0] <= PARTICLE_RADIUS:
-            virtual_particle = np.zeros((1, 9))
-            virtual_particle[0, 0] = DIAMETER * WALL_FAKE_OVERLAP
-            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP,
-                                         (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER,
-                                         DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP), 0]
-            self.colliders[i] = np.vstack([self.colliders[i], virtual_particle])
-
-        if self.particles[i, 0] >= 1 - PARTICLE_RADIUS:
-            virtual_particle = np.zeros((1, 9))
-            virtual_particle[0, 0] = -DIAMETER * WALL_FAKE_OVERLAP
-            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP,
-                                         (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER,
-                                         -DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP), 0]
-            self.colliders[i] = np.vstack([self.colliders[i], virtual_particle])
-
-        if self.particles[i, 1] <= PARTICLE_RADIUS:
-            virtual_particle = np.zeros((1, 9))
-            virtual_particle[0, 1] = DIAMETER * WALL_FAKE_OVERLAP
-            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP,
-                                         (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER, 0,
-                                         DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP)]
-            self.colliders[i] = np.vstack([self.colliders[i], virtual_particle])
-
-        if self.particles[i, 1] >= 1 - PARTICLE_RADIUS:
-            virtual_particle = np.zeros((1, 9))
-            virtual_particle[0, 1] = -DIAMETER * WALL_FAKE_OVERLAP
-            virtual_particle[0, 5: 9] = [1 - WALL_FAKE_OVERLAP,
-                                         (1 - WALL_FAKE_OVERLAP - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER, 0,
-                                         -DIAMETER * WALL_FAKE_OVERLAP * WALL_FAKE_OVERLAP * (1 - WALL_FAKE_OVERLAP)]
-            self.colliders[i] = np.vstack([self.colliders[i], virtual_particle])
-
-    def populate_collider_positions(self):
+    def populate_colliders(self):
         self.colliders = []
-        for i in range(self.particles.shape[0]):
-            particle_colliders = self.particles[i] - self.particles[self.colliders_indices[i]]
+        self.collider_weights = []
+        self.collider_velocities = []
+        for particle_index in range(self.particles.shape[0]):
+            collider_indices = self.colliders_indices[particle_index]
+            particle_colliders = self.particles[collider_indices]
             # particle_colliders += (np.random.rand(self.colliders[i].shape[0], 2) - 0.5) * DIAMETER * NOISE_LEVEL
-            self.add_wall_virtual_colliders(i)
+            self.colliders.append(self.particles[particle_index] - particle_colliders)
+            self.collider_weights.append(self.particles_weights[collider_indices])
+            self.collider_velocities.append(self.particle_velocities[collider_indices])
 
-    def precalc_colliders_interaction(self):
+        self.add_wall_virtual_colliders()
+
+    def add_wall_virtual_colliders(self):
+        segment_closest, distances = points_to_segments_distance(self.particles, self.segments)
+        for particle_index, particle in enumerate(self.particles):
+            """
+              segment
+                  +
+                  | 
+            *-----|-----* virtual p 
+            p     | 
+                  | 
+                  | 
+                  +   
+            """
+            particle_segment_closest = segment_closest[
+                particle_index, distances[particle_index] <= WALL_INTERACTION_DISTANCE]
+            virtual_collider = (particle - particle_segment_closest) * 2
+            self.colliders[particle_index] = np.vstack(
+                [self.colliders[particle_index], virtual_collider])
+
+    # def copy_to_colliders_mats(self):
+    #     for i in range(PARTICLE_COUNT):
+    #         self.colliders[i][0: len(self.colliders_indices[i]), 3: 9] = self.particles[self.colliders_indices[i], 2: 8]
+
+    def compute_particle_pressures(self):
+        particles_pressure = []
         for i in range(self.particles.shape[0]):
             if self.colliders[i].shape[0] == 0:
                 continue
             # ontop_mask = np.logical_and(self.colliders[i][:, 0] == 0, self.colliders[i][:, 1] == 0)
             # if np.sum(ontop_mask) > 0:
             #     self.colliders[i][ontop_mask, 0: 2] = (np.random.rand(1, 2) - 0.5) * ONTOP_FAKE_DISTANCE * DIAMETER
+            collider_distances = np.hypot(
+                self.colliders[i][:, 0] + self.colliders[i][:, 1]).reshape(-1, 1)
+            normalized_collider_distances = 1 - np.clip(collider_distances / DIAMETER, 0, 1)
+            particle_pressure = np.sum(normalized_collider_distances * self.collider_weights, 0)  # total overlap
+            # particle_pressure = np.maximum(0, particle_pressure - IGNORED_PRESSURE)
+            particles_pressure[i] = particle_pressure
+        self.particles_pressure = np.array(particles_pressure)
 
-            colliders_distance = np.hypot(self.colliders[i][:, 0] + self.colliders[i][:, 1]).reshape(-1, 1)
-            self.colliders[i] /= colliders_distance  # normalized repel from collider
-            colliders_distance_normalized = np.minimum(1, np.maximum(0,
-                                                                     1 - colliders_distance / DIAMETER))  # collider particle overlap
-            overlap = np.sum(colliders_distance_normalized, 0)  # total overlap
-            perssure = np.maximum(0, (overlap - IGNORED_PRESSURE) * PRESSURE_AMPLIFIER)  # pressure
-            # mid-range pressure
-            self.particles[i, 6: 8] = np.sum(
-                self.colliders[i][:, 0: 2] * (1 - self.colliders[i][:, 2: 3]) * (self.colliders[i][:, 2: 3]), 0)
+    def apply_pressure(self):
+        for i in range(self.particles.shape[0]):
+            collider_pressures = self.particles_pressure[self.colliders_indices[i]]
+            self.particle_velocities[i] += DT * PRESSURE_AMPLIFIER * np.sum(
+                self.particles_pressure[i] + collider_pressures, 0) * \
+                                           self.particles_weights[i] * self.colliders[i]
 
-    # def copy_to_colliders_mats(self):
-    #     for i in range(PARTICLE_COUNT):
-    #         self.colliders[i][0: len(self.colliders_indices[i]), 3: 9] = self.particles[self.colliders_indices[i], 2: 8]
+    def apply_gravity(self):
+        self.particle_velocities += DT * self.gravity * PARTICLE_MASS
 
-    def apply_velocities_updates(self):
-        # gravity
-        self.particles_velocities += DT * self.gravity * PARTICLE_MASS
-        for i in range(PARTICLE_COUNT):
-            if self.colliders[i].shape[0] == 0:
-                continue
-            self.particles_velocities[i] += DT * VISCOSITY * np.sum(
-                self.colliders[i][:, 3: 5] - self.particles_velocities[i], 0)
-
-            # # pressure - dt * (particle_presure + collider_presure) * collider_relative_overlap * normalized_repel
-            # self.particles_velocities[i] += DT * np.sum(
-            #     (self.particles[i, 5: 6] + self.colliders[i][:, 6: 7]) * self.colliders[i][:, 2: 3] * self.colliders[i][
-            #                                                                                           :, 0: 2], 0)
+    def apply_viscocity(self):
+        for i in range(self.particles.shape[0]):
+            self.particle_velocities[i] += DT * VISCOSITY * np.sum(
+                self.collider_velocities[i] - self.particle_velocities[i], 0)
             # viscosity
             # # surface tension
             # a = TENSILE_ALPHA * (self.particles[i, 4] + self.colliders[i][:, 5: 6] - 2 * IGNORED_PRESSURE)
@@ -123,7 +127,7 @@ class Crate:
             #     np.sum((self.colliders[i][:, 7: 9] - self.particles[i, 6: 8]) * self.colliders[i][:, 0: 2], 1)[:, None])
             # self.particles_velocities[i] += DT * np.sum(self.colliders[i][:, 0: 2] * (a + b), 0)
 
-    def apply_positions_updates(self):
-        self.particles += DT * self.particles_velocities
+    def apply_velocity(self):
+        self.particles += DT * self.particle_velocities
         self.particles = np.maximum(self.particles, PARTICLE_RADIUS)
         self.particles = np.minimum(self.particles, 1 - PARTICLE_RADIUS)
