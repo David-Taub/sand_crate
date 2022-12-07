@@ -8,16 +8,16 @@ DT = 0.005
 PARTICLE_RADIUS = 0.01
 DIAMETER = PARTICLE_RADIUS * 2
 
-PARTICLE_MASS = 0.2
+PARTICLE_MASS = 1
 SPRING_OVERLAP_BALANCE = 0.2
-SPRING_AMPLIFIER = 500
-PRESSURE_AMPLIFIER = 500
-IGNORED_PRESSURE = 0.0
-VISCOSITY = 1
+SPRING_AMPLIFIER = 400
+PRESSURE_AMPLIFIER = 600
+IGNORED_PRESSURE = 0.1
+NOISE_LEVEL = 0.1
+VISCOSITY = 10
 
 TARGET_FRAME_RATE = 120
 PARTICLE_COUNT = 500
-NOISE_LEVEL = 0.2
 
 
 class Crate:
@@ -39,7 +39,6 @@ class Crate:
         self.particles_weights = np.ones(PARTICLE_COUNT) * PARTICLE_MASS
         self.colliders = []
         self.collider_weights = []
-        `
         self.colliders_indices = []
         self.collider_overlaps = []
         self.collider_velocities = []
