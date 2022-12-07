@@ -8,9 +8,9 @@ from typings import Particles
 DT = 0.005
 PARTICLE_RADIUS = 0.005
 DIAMETER = PARTICLE_RADIUS * 2
-WALL_COLLISION_DECAY = 0.7
+WALL_COLLISION_DECAY = 0.2
 PARTICLE_MASS = 0.5
-SPRING_OVERLAP_BALANCE = 0.5
+SPRING_OVERLAP_BALANCE = 0.1
 SPRING_AMPLIFIER = 5000
 PRESSURE_AMPLIFIER = 2000
 IGNORED_PRESSURE = 0.0
@@ -118,7 +118,7 @@ class Crate:
             wall_velocity_dot = np.dot(self.particle_velocities[particle_index], wall_ortho)
             if wall_velocity_dot < 0:
                 wall_counter_component = wall_velocity_dot * wall_ortho / np.dot(wall_ortho, wall_ortho)
-                self.particle_velocities[particle_index] -= wall_counter_component * 2 * WALL_COLLISION_DECAY
+                self.particle_velocities[particle_index] -= wall_counter_component * 2 * (1 - WALL_COLLISION_DECAY)
 
     def compute_particle_pressures(self):
         particles_pressure = []

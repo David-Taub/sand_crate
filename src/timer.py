@@ -36,9 +36,11 @@ class Timer:
         self.counters = defaultdict(lambda: 0)
 
     def report(self) -> str:
-        total = sum(self.durations.values())
+        total_duration = sum(self.durations.values())
         contexts_report = {}
         for context, duration in self.durations.items():
             contexts_report[
-                context] = f"{1000 * duration / self.counters[context]:.2f} ms, {100 * duration / total:.0f}%"
-        return yaml.dump(contexts_report)
+                context] = f"{1000 * duration / self.counters[context]:.2f} ms, {100 * duration / total_duration:.0f}%"
+        frame_duration = total_duration / min(self.counters.values())
+        return yaml.dump(
+            {"Timing": contexts_report, "FPS": f"{int(1 / frame_duration)} ({1000 * frame_duration:.0f} ms)"})
