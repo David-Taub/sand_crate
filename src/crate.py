@@ -2,16 +2,17 @@ import numpy as np
 
 from geometry_utils import points_to_segments_distance
 from neighbor_detector import detect_particle_neighbors
+from timer import Timer
 from typings import Particles
 
 DT = 0.005
-PARTICLE_RADIUS = 0.02
+PARTICLE_RADIUS = 0.005
 DIAMETER = PARTICLE_RADIUS * 2
-
-PARTICLE_MASS = 1
-SPRING_OVERLAP_BALANCE = 0.15
-SPRING_AMPLIFIER = 2000
-PRESSURE_AMPLIFIER = 1000
+WALL_COLLISION_DECAY = 0.7
+PARTICLE_MASS = 0.5
+SPRING_OVERLAP_BALANCE = 0.5
+SPRING_AMPLIFIER = 5000
+PRESSURE_AMPLIFIER = 2000
 IGNORED_PRESSURE = 0.0
 NOISE_LEVEL = 0.1
 VISCOSITY = 8
@@ -42,20 +43,31 @@ class Crate:
         self.collider_overlaps = []
         self.collider_velocities = []
         self.collider_pressures = []
+        self.debug_prints = ""
+        self.timer = Timer()
 
     def physics_tick(self):
-        self.colliders_indices = detect_particle_neighbors(particles=self.particles, diameter=DIAMETER)
-        self.populate_colliders()
-        self.add_wall_virtual_colliders()
-        self.compute_particle_pressures()
-        self.compute_collider_pressures()
+        with self.timer("Collisions"):
+            self.colliders_indices = detect_particle_neighbors(particles=self.particles, diameter=DIAMETER)
 
-        self.apply_wall_bounce()
-        self.apply_gravity()
-        self.apply_pressure()
-        self.apply_viscosity()
+        with self.timer("Colliders"):
+            self.populate_colliders()
+            self.add_wall_virtual_colliders()
 
-        self.apply_velocity()
+        with self.timer("Pressure"):
+            self.compute_particle_pressures()
+            self.compute_collider_pressures()
+
+        with self.timer("Forces"):
+            self.apply_wall_bounce()
+            self.apply_gravity()
+            self.apply_pressure()
+            self.apply_viscosity()
+
+        with self.timer("Velocities"):
+            self.apply_velocity()
+
+        self.debug_prints = self.timer.report()
 
     def populate_colliders(self):
         self.colliders = []
@@ -64,7 +76,7 @@ class Crate:
         for particle_index in range(self.particles.shape[0]):
             collider_indices = self.colliders_indices[particle_index]
             particle_colliders = self.particles[collider_indices]
-            # particle_colliders += (np.random.rand(self.colliders[i].shape[0], 2) - 0.5) * DIAMETER * NOISE_LEVEL
+            particle_colliders += (np.random.rand(len(collider_indices), 2) - 0.5) * DIAMETER * NOISE_LEVEL
             self.colliders.append(self.particles[particle_index] - particle_colliders)
             self.collider_weights.append(self.particles_weights[collider_indices])
             self.collider_velocities.append(self.particle_velocities[collider_indices])
@@ -105,9 +117,8 @@ class Crate:
             wall_ortho = np.mean(self.virtual_colliders[particle_index], 0)
             wall_velocity_dot = np.dot(self.particle_velocities[particle_index], wall_ortho)
             if wall_velocity_dot < 0:
-                wall_counter_component = wall_velocity_dot * wall_ortho / np.dot(
-                    wall_ortho, wall_ortho)
-                self.particle_velocities[particle_index] -= wall_counter_component * 2
+                wall_counter_component = wall_velocity_dot * wall_ortho / np.dot(wall_ortho, wall_ortho)
+                self.particle_velocities[particle_index] -= wall_counter_component * 2 * WALL_COLLISION_DECAY
 
     def compute_particle_pressures(self):
         particles_pressure = []
@@ -152,7 +163,7 @@ class Crate:
             self.particle_velocities[i] += DT * PRESSURE_AMPLIFIER * np.sum(weighted_colliders, 0)
 
     def apply_gravity(self):
-        self.particle_velocities += DT * self.gravity[None] * self.particles_weights[:, None]
+        self.particle_velocities += DT * self.gravity[None]
 
     def apply_viscosity(self):
         for i in range(self.particles.shape[0]):

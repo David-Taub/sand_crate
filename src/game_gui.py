@@ -15,13 +15,48 @@ SCREEN_Y = 1000
 
 
 class GameGUI:
-    screen = pygame.display.set_mode((SCREEN_X, SCREEN_Y))
+    pygame.init()
+    pygame.font.init()
     pygame.display.set_caption("SandCrate")
+    screen = pygame.display.set_mode((SCREEN_X, SCREEN_Y))
     clock = pygame.time.Clock()
+    font = pygame.font.SysFont("monospace", SCREEN_X // 50)
 
     def __init__(self, crate: Crate) -> None:
         self.crate = crate
         self.done = False
+
+    def run_live_simulation(self) -> None:
+        self.done = False
+        while not self.done:
+            self.clock.tick(TARGET_FRAME_RATE)
+            self.handle_input()
+            self.crate.physics_tick()
+            self.display_particles(self.crate.particles, self.crate.particles_pressure)
+            self.display_debug(self.crate.debug_prints)
+
+        pygame.quit()
+
+    def record_simulation(self, num_of_ticks: int = 2000,
+                          recording_output_file_path: Path = Path("recording.zarr")) -> None:
+        particles_recording = np.zeros([num_of_ticks] + list(self.crate.particles.shape))
+        for i in tqdm(range(num_of_ticks), desc="Simulating"):
+            self.crate.physics_tick()
+            particles_recording[i] = self.crate.particles
+        zarr.save(str(recording_output_file_path), particles_recording)
+
+    def show_recording(self, recording_file_path: Path = Path("recording.zarr")) -> None:
+        particles_recording = zarr.load(str(recording_file_path))
+        while not self.done:
+            for particles in particles_recording:
+                self.clock.tick(TARGET_FRAME_RATE)
+                self.handle_input()
+                self.display_particles(particles)
+                self.display_debug(self.crate.debug_prints)
+
+                if self.done:
+                    break
+        pygame.quit()
 
     def handle_input(self) -> None:
         for event in pygame.event.get():
@@ -47,7 +82,7 @@ class GameGUI:
                     255 - int(particles_color[i] * 255), 255 - int(particles_color[i] * 255),
                     255)
             else:
-                color = (200, 200, 255)
+                color = (100, 100, 255)
             color = np.clip(color, 0, 255)
             pygame.draw.circle(self.screen, color, center, p_rad)
         pygame.display.update()
@@ -56,30 +91,8 @@ class GameGUI:
     def crate_to_screen_coord(x: float, y: float) -> tuple[int, int]:
         return int(x * (SCREEN_X - 1)), int(y * (SCREEN_Y - 1))
 
-    def run_live_simulation(self) -> None:
-        self.done = False
-        while not self.done:
-            self.clock.tick(TARGET_FRAME_RATE)
-            self.handle_input()
-            self.crate.physics_tick()
-            self.display_particles(self.crate.particles, self.crate.particles_pressure)
-        pygame.quit()
-
-    def record_simulation(self, num_of_ticks: int = 2000,
-                          recording_output_file_path: Path = Path("recording.zarr")) -> None:
-        particles_recording = np.zeros([num_of_ticks] + list(self.crate.particles.shape))
-        for i in tqdm(range(num_of_ticks), desc="Simulating"):
-            self.crate.physics_tick()
-            particles_recording[i] = self.crate.particles
-        zarr.save(str(recording_output_file_path), particles_recording)
-
-    def show_recording(self, recording_file_path: Path = Path("recording.zarr")) -> None:
-        particles_recording = zarr.load(str(recording_file_path))
-        while not self.done:
-            for particles in particles_recording:
-                self.clock.tick(TARGET_FRAME_RATE)
-                self.handle_input()
-                self.display_particles(particles)
-                if self.done:
-                    break
-        pygame.quit()
+    def display_debug(self, text: str):
+        for line, line_text in enumerate(text.split("\n")):
+            text_surface = self.font.render(line_text, True, (255, 255, 255))
+            self.screen.blit(text_surface, (0, line * self.font.get_linesize()))
+        pygame.display.update()
