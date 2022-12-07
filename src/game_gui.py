@@ -1,7 +1,14 @@
+from pathlib import Path
+from typing import Optional
+
 import numpy as np
 import pygame
+import zarr as zarr
+from nptyping import NDArray
+from tqdm import tqdm
 
 from crate import Crate, PARTICLE_RADIUS, TARGET_FRAME_RATE
+from typings import Particles
 
 SCREEN_X = 1000
 SCREEN_Y = 1000
@@ -12,43 +19,67 @@ class GameGUI:
     pygame.display.set_caption("SandCrate")
     clock = pygame.time.Clock()
 
-    def __init__(self, crate: Crate):
+    def __init__(self, crate: Crate) -> None:
         self.crate = crate
+        self.done = False
 
-    def handle_input(self):
+    def handle_input(self) -> None:
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RIGHT:
                     self.crate.gravity = np.array([9.81, 0.0])
                 if event.key == pygame.K_LEFT:
                     self.crate.gravity = np.array([-9.81, 0.0])
+                if event.key == pygame.K_q:
+                    self.done = True
             if event.type == pygame.KEYUP:
                 self.crate.gravity = np.array([0.0, 9.81])
 
-    def display_particles(self):
+    def display_particles(self, particles: Particles, particles_color: Optional[NDArray] = None) -> None:
         BLACK = (0, 0, 0)
         p_rad = int(SCREEN_X * PARTICLE_RADIUS)
         self.screen.fill(BLACK)
-        particles = self.crate.particles
 
-        for i in range(self.crate.particles.shape[0]):
-            center = self.game_to_screen_coord(self.crate.particles[i, 0], self.crate.particles[i, 1])
-            color = (
-                255 - int(self.crate.particles_pressure[i] * 255), 255 - int(self.crate.particles_pressure[i] * 255),
-                255)
+        for i in range(particles.shape[0]):
+            center = self.crate_to_screen_coord(particles[i, 0], particles[i, 1])
+            if particles_color is not None:
+                color = (
+                    255 - int(particles_color[i] * 255), 255 - int(particles_color[i] * 255),
+                    255)
+            else:
+                color = (200, 200, 255)
             color = np.clip(color, 0, 255)
             pygame.draw.circle(self.screen, color, center, p_rad)
         pygame.display.update()
 
     @staticmethod
-    def game_to_screen_coord(x: float, y: float):
+    def crate_to_screen_coord(x: float, y: float) -> tuple[int, int]:
         return int(x * (SCREEN_X - 1)), int(y * (SCREEN_Y - 1))
 
-    def run_main_loop(self):
+    def run_live_simulation(self) -> None:
         self.done = False
         while not self.done:
             self.clock.tick(TARGET_FRAME_RATE)
             self.handle_input()
             self.crate.physics_tick()
-            self.display_particles()
+            self.display_particles(self.crate.particles, self.crate.particles_pressure)
+        pygame.quit()
+
+    def record_simulation(self, num_of_ticks: int = 2000,
+                          recording_output_file_path: Path = Path("recording.zarr")) -> None:
+        particles_recording = np.zeros([num_of_ticks] + list(self.crate.particles.shape))
+        for i in tqdm(range(num_of_ticks), desc="Simulating"):
+            self.crate.physics_tick()
+            particles_recording[i] = self.crate.particles
+        zarr.save(str(recording_output_file_path), particles_recording)
+
+    def show_recording(self, recording_file_path: Path = Path("recording.zarr")) -> None:
+        particles_recording = zarr.load(str(recording_file_path))
+        while not self.done:
+            for particles in particles_recording:
+                self.clock.tick(TARGET_FRAME_RATE)
+                self.handle_input()
+                self.display_particles(particles)
+                if self.done:
+                    break
         pygame.quit()

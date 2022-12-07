@@ -5,25 +5,24 @@ from neighbor_detector import detect_particle_neighbors
 from typings import Particles
 
 DT = 0.005
-PARTICLE_RADIUS = 0.01
+PARTICLE_RADIUS = 0.02
 DIAMETER = PARTICLE_RADIUS * 2
 
 PARTICLE_MASS = 1
-SPRING_OVERLAP_BALANCE = 0.1
-SPRING_AMPLIFIER = 600
-PRESSURE_AMPLIFIER = 500
-IGNORED_PRESSURE = 0.05
+SPRING_OVERLAP_BALANCE = 0.15
+SPRING_AMPLIFIER = 2000
+PRESSURE_AMPLIFIER = 1000
+IGNORED_PRESSURE = 0.0
 NOISE_LEVEL = 0.1
-VISCOSITY = 10
+VISCOSITY = 8
 
 TARGET_FRAME_RATE = 120
-PARTICLE_COUNT = 500
 
 
 class Crate:
     gravity = np.array([0.0, 9.81])
 
-    def __init__(self) -> None:
+    def __init__(self, particle_count: int) -> None:
         self.particles: Particles
         self.colliders: Particles
         # N x 2 x 2
@@ -33,10 +32,10 @@ class Crate:
             [[1.0, 0.0], [1.0, 1.0]],
             [[0.0, 1.0], [1.0, 1.0]],
         ])
-        self.colliders_indices = [[]] * PARTICLE_COUNT
-        self.particles = np.random.rand(PARTICLE_COUNT, 2)
-        self.particle_velocities = np.zeros((PARTICLE_COUNT, 2))
-        self.particles_weights = np.ones(PARTICLE_COUNT) * PARTICLE_MASS
+        self.colliders_indices = [[]] * particle_count
+        self.particles = np.random.rand(particle_count, 2)
+        self.particle_velocities = np.zeros((particle_count, 2))
+        self.particles_weights = np.ones(particle_count) * PARTICLE_MASS
         self.colliders = []
         self.collider_weights = []
         self.colliders_indices = []
@@ -55,6 +54,7 @@ class Crate:
         self.apply_gravity()
         self.apply_pressure()
         self.apply_viscosity()
+
         self.apply_velocity()
 
     def populate_colliders(self):
@@ -124,7 +124,7 @@ class Crate:
             collider_overlaps = 1 - np.clip(collider_distances / DIAMETER, 0, 1)
             self.collider_overlaps.append(collider_overlaps)
             particle_pressure = np.sum(collider_overlaps * self.collider_weights[i], 0)  # total overlap
-            # particle_pressure = np.maximum(0, particle_pressure - IGNORED_PRESSURE)
+            particle_pressure = np.maximum(0, particle_pressure - IGNORED_PRESSURE)
             particles_pressure.append(particle_pressure)
         assert all(n >= 0 for n in particles_pressure)
         self.particles_pressure = np.array(particles_pressure)
