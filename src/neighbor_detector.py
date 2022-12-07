@@ -35,28 +35,41 @@ def detect_particle_neighbors(particles: Particles, diameter: float) -> list[Par
     strip_start_indices = np.append(strip_start_indices, len(y_floored))
     strip_start_indices = np.append(strip_start_indices, len(y_floored))
     neighbors: list[ParticlesNeighbors] = []
-    for strip_start_index, next_strip_start_index, next_strip_end_index in zip(strip_start_indices,
-                                                                               strip_start_indices[1:],
-                                                                               strip_start_indices[2:]):
-        detect_neighbors_for_particles_in_strip(particles, neighbors, strip_start_index, next_strip_start_index,
-                                                next_strip_end_index, diameter)
+    for strip_start_index, next_strip_start_index, next_strip_end_index in zip(
+            strip_start_indices, strip_start_indices[1:], strip_start_indices[2:]
+    ):
+        detect_neighbors_for_particles_in_strip(
+            particles, neighbors, strip_start_index, next_strip_start_index, next_strip_end_index, diameter
+        )
     add_reverse_neighbors(neighbors)
     trim_neighbors(neighbors, MAX_ALLOWED_NEIGHBORS)
     neighbors = np.array(neighbors)
-    reversed_indices_neighbors = [[indices[i] for i in particle_neighbors] for particle_neighbors in
-                                  neighbors[np.argsort(indices)]]
+    reversed_indices_neighbors = [
+        [indices[i] for i in particle_neighbors] for particle_neighbors in neighbors[np.argsort(indices)]
+    ]
     return reversed_indices_neighbors
 
 
-def detect_neighbors_for_particles_in_strip(particles: Particles, neighbors: list[ParticlesNeighbors],
-                                            strip_start_index: int, next_strip_start_index: int,
-                                            next_strip_end_index: int, diameter: float) -> None:
-    strip_x = particles[strip_start_index: next_strip_start_index, 0]
-    next_strip_x = particles[next_strip_start_index: next_strip_end_index, 0]
+def detect_neighbors_for_particles_in_strip(
+        particles: Particles,
+        neighbors: list[ParticlesNeighbors],
+        strip_start_index: int,
+        next_strip_start_index: int,
+        next_strip_end_index: int,
+        diameter: float,
+) -> None:
+    strip_x = particles[strip_start_index:next_strip_start_index, 0]
+    next_strip_x = particles[next_strip_start_index:next_strip_end_index, 0]
     for particle_index_in_strip, particle_x in enumerate(strip_x):
-        particle_neighbors = find_neighbors_of_particle(particle_x, particle_index_in_strip, strip_x,
-                                                        next_strip_x, strip_start_index, next_strip_start_index,
-                                                        diameter)
+        particle_neighbors = find_neighbors_of_particle(
+            particle_x,
+            particle_index_in_strip,
+            strip_x,
+            next_strip_x,
+            strip_start_index,
+            next_strip_start_index,
+            diameter,
+        )
         # TODO - tradeoff, slower collision detection, for fewer collisions. see if commenting out these lines
         # is faster
         #############################################################
@@ -81,19 +94,30 @@ def trim_neighbors(neighbors: list[ParticlesNeighbors], max_allowed_neighbors: i
         neighbors[particle_index] = particle_neighbors[:max_allowed_neighbors]
 
 
-def find_neighbors_of_particle(particle_x: float, particle_index_in_strip: int, strip_x: list[float],
-                               next_strip_x: list[float], strip_start_index: int, next_strip_start_index: int,
-                               diameter: float) -> ParticlesNeighbors:
+def find_neighbors_of_particle(
+        particle_x: float,
+        particle_index_in_strip: int,
+        strip_x: list[float],
+        next_strip_x: list[float],
+        strip_start_index: int,
+        next_strip_start_index: int,
+        diameter: float,
+) -> ParticlesNeighbors:
     # current strip
-    end_of_neighbors_index_in_strip = np.searchsorted(strip_x, particle_x + diameter, side='right')
-    neighbors_in_strip = list(range(strip_start_index + particle_index_in_strip + 1,
-                                    strip_start_index + end_of_neighbors_index_in_strip))
+    end_of_neighbors_index_in_strip = np.searchsorted(strip_x, particle_x + diameter, side="right")
+    neighbors_in_strip = list(
+        range(strip_start_index + particle_index_in_strip + 1, strip_start_index + end_of_neighbors_index_in_strip)
+    )
 
     # next strip
-    start_of_neighbors_index_in_next_strip = np.searchsorted(next_strip_x, particle_x - diameter, side='left')
-    end_of_neighbors_index_in_next_strip = np.searchsorted(next_strip_x, particle_x + diameter, side='right')
-    neighbors_in_next_strip = list(range(next_strip_start_index + start_of_neighbors_index_in_next_strip,
-                                         next_strip_start_index + end_of_neighbors_index_in_next_strip))
+    start_of_neighbors_index_in_next_strip = np.searchsorted(next_strip_x, particle_x - diameter, side="left")
+    end_of_neighbors_index_in_next_strip = np.searchsorted(next_strip_x, particle_x + diameter, side="right")
+    neighbors_in_next_strip = list(
+        range(
+            next_strip_start_index + start_of_neighbors_index_in_next_strip,
+            next_strip_start_index + end_of_neighbors_index_in_next_strip,
+        )
+    )
 
     return neighbors_in_strip + neighbors_in_next_strip
 
