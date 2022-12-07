@@ -36,12 +36,14 @@ class Crate:
         self.colliders_indices = [[]] * particle_count
         self.particles = np.random.rand(particle_count, 2)
         self.particle_velocities = np.zeros((particle_count, 2))
+        self.particles_pressure = np.zeros((particle_count, 1))
         self.particles_weights = np.ones(particle_count) * PARTICLE_MASS
         self.colliders = []
         self.collider_weights = []
         self.colliders_indices = []
         self.collider_overlaps = []
         self.collider_velocities = []
+        self.virtual_colliders = []
         self.collider_pressures = []
         self.debug_prints = ""
         self.timer = Timer()
@@ -142,14 +144,15 @@ class Crate:
 
     def compute_collider_pressures(self):
         self.collider_pressures = []
-        for i in range(self.particles.shape[0]):
-            if self.colliders[i].shape[0] == 0:
+        for particle_index in range(self.particles.shape[0]):
+            if self.colliders[particle_index].shape[0] == 0:
                 self.collider_pressures.append([])
                 continue
-            particle_collider_pressures = self.particles_pressure[self.colliders_indices[i]]
+            particle_collider_pressures = self.particles_pressure[self.colliders_indices[particle_index]]
             # add virtual particle pressure
             particle_collider_pressures = np.append(particle_collider_pressures,
-                                                    [0] * (self.colliders[i].shape[0] - len(self.colliders_indices[i])))
+                                                    [0] * (self.colliders[particle_index].shape[0] - len(
+                                                        self.colliders_indices[particle_index])))
             self.collider_pressures.append(particle_collider_pressures)
 
     def apply_pressure(self):

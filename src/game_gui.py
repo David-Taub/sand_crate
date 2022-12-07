@@ -60,7 +60,6 @@ class GameGUI:
                 self.screen.fill(BACKGROUND_COLOR)
                 self.handle_input()
                 self.display_particles(particles)
-                self.display_debug(self.crate.debug_prints)
                 pygame.display.update()
                 if self.done:
                     break
