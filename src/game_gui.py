@@ -7,34 +7,40 @@ import zarr as zarr
 from nptyping import NDArray
 from tqdm import tqdm
 
-from crate import Crate, PARTICLE_RADIUS, TARGET_FRAME_RATE
+from crate import Crate, PARTICLE_RADIUS
 from typings import Particles
 
 SCREEN_X = 1000
 SCREEN_Y = 1000
 
+BACKGROUND_COLOR = (0, 0, 0)
+
 
 class GameGUI:
-    pygame.init()
-    pygame.font.init()
-    pygame.display.set_caption("SandCrate")
-    screen = pygame.display.set_mode((SCREEN_X, SCREEN_Y))
-    clock = pygame.time.Clock()
-    font = pygame.font.SysFont("monospace", SCREEN_X // 50)
-
     def __init__(self, crate: Crate) -> None:
         self.crate = crate
         self.done = False
 
+    def init_display(self):
+        pygame.init()
+        pygame.font.init()
+        pygame.display.set_caption("SandCrate")
+        self.screen = pygame.display.set_mode((SCREEN_X, SCREEN_Y))
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.SysFont("monospace", SCREEN_X // 50)
+
     def run_live_simulation(self) -> None:
-        self.done = False
+        self.init_display()
         while not self.done:
-            self.clock.tick(TARGET_FRAME_RATE)
+            # self.clock.tick(TARGET_FRAME_RATE)
             self.handle_input()
             self.crate.physics_tick()
+
+            self.screen.fill(BACKGROUND_COLOR)
+            self.display_segments(self.crate.segments)
             self.display_particles(self.crate.particles, self.crate.particles_pressure)
             self.display_debug(self.crate.debug_prints)
-
+            pygame.display.update()
         pygame.quit()
 
     def record_simulation(self, num_of_ticks: int = 2000,
@@ -47,13 +53,15 @@ class GameGUI:
 
     def show_recording(self, recording_file_path: Path = Path("recording.zarr")) -> None:
         particles_recording = zarr.load(str(recording_file_path))
+        self.init_display()
         while not self.done:
             for particles in particles_recording:
-                self.clock.tick(TARGET_FRAME_RATE)
+                # self.clock.tick(TARGET_FRAME_RATE)
+                self.screen.fill(BACKGROUND_COLOR)
                 self.handle_input()
                 self.display_particles(particles)
                 self.display_debug(self.crate.debug_prints)
-
+                pygame.display.update()
                 if self.done:
                     break
         pygame.quit()
@@ -70,22 +78,22 @@ class GameGUI:
             if event.type == pygame.KEYUP:
                 self.crate.gravity = np.array([0.0, 9.81])
 
-    def display_particles(self, particles: Particles, particles_color: Optional[NDArray] = None) -> None:
-        BLACK = (0, 0, 0)
-        p_rad = int(SCREEN_X * PARTICLE_RADIUS)
-        self.screen.fill(BLACK)
+    def display_segments(self, segments) -> None:
+        for segment in segments:
+            print(segment)
 
+    def display_particles(self, particles: Particles, particles_color: Optional[NDArray] = None) -> None:
+        particle_radius = int(SCREEN_X * PARTICLE_RADIUS)
         for i in range(particles.shape[0]):
-            center = self.crate_to_screen_coord(particles[i, 0], particles[i, 1])
+            particle_center = self.crate_to_screen_coord(particles[i, 0], particles[i, 1])
             if particles_color is not None:
-                color = (
+                particle_color = (
                     255 - int(particles_color[i] * 255), 255 - int(particles_color[i] * 255),
                     255)
             else:
-                color = (100, 100, 255)
-            color = np.clip(color, 0, 255)
-            pygame.draw.circle(self.screen, color, center, p_rad)
-        pygame.display.update()
+                particle_color = (100, 100, 255)
+            particle_color = np.clip(particle_color, 0, 255)
+            pygame.draw.circle(self.screen, particle_color, particle_center, particle_radius)
 
     @staticmethod
     def crate_to_screen_coord(x: float, y: float) -> tuple[int, int]:
@@ -95,4 +103,3 @@ class GameGUI:
         for line, line_text in enumerate(text.split("\n")):
             text_surface = self.font.render(line_text, True, (255, 255, 255))
             self.screen.blit(text_surface, (0, line * self.font.get_linesize()))
-        pygame.display.update()

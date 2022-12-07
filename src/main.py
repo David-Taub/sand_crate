@@ -3,11 +3,11 @@ from game_gui import GameGUI
 
 
 def main():
-    crate = Crate(1000)
-    GameGUI(crate).run_live_simulation()
-    # game = GameGUI(crate)
-    # game.record_simulation(300)
-    # game.show_recording()
+    crate = Crate(1500)
+    # GameGUI(crate).run_live_simulation()
+    game = GameGUI(crate)
+    game.record_simulation(300)
+    game.show_recording()
 
 
 if __name__ == '__main__':
