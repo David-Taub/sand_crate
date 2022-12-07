@@ -3,8 +3,8 @@ import pygame
 
 from crate import Crate, PARTICLE_RADIUS, TARGET_FRAME_RATE
 
-SCREEN_X = 500
-SCREEN_Y = 500
+SCREEN_X = 1000
+SCREEN_Y = 1000
 
 
 class GameGUI:
@@ -18,18 +18,12 @@ class GameGUI:
     def handle_input(self):
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_r:
-                    self.crate.gen_particles()
                 if event.key == pygame.K_RIGHT:
-                    self.g = np.array([9.81, 0.0])
+                    self.crate.gravity = np.array([9.81, 0.0])
                 if event.key == pygame.K_LEFT:
-                    self.g = np.array([-9.81, 0.0])
-                if event.key == pygame.K_q:
-                    self.done = True
+                    self.crate.gravity = np.array([-9.81, 0.0])
             if event.type == pygame.KEYUP:
-                self.g = np.array([0.0, 9.81])
-            if event.type == pygame.QUIT:
-                self.done = True
+                self.crate.gravity = np.array([0.0, 9.81])
 
     def display_particles(self):
         BLACK = (0, 0, 0)
@@ -37,10 +31,12 @@ class GameGUI:
         self.screen.fill(BLACK)
         particles = self.crate.particles
 
-        particles[:, 5] /= np.max(particles[:, 5])
-        for i in range(particles.shape[0]):
-            center = self.game_to_screen_coord(particles[i, 0], particles[i, 1])
-            color = (255 - int(particles[i, 5] * 255), 255 - int(particles[i, 5] * 255), 255)
+        for i in range(self.crate.particles.shape[0]):
+            center = self.game_to_screen_coord(self.crate.particles[i, 0], self.crate.particles[i, 1])
+            color = (
+                255 - int(self.crate.particles_pressure[i] * 255), 255 - int(self.crate.particles_pressure[i] * 255),
+                255)
+            color = np.clip(color, 0, 255)
             pygame.draw.circle(self.screen, color, center, p_rad)
         pygame.display.update()
 

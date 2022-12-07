@@ -1,8 +1,9 @@
 import numpy as np
+from nptyping import NDArray
 
 from typings import Particles, ParticlesNeighbors
 
-MAX_ALLOWED_NEIGHBORS = 6
+MAX_ALLOWED_NEIGHBORS = 20
 
 
 def detect_particle_neighbors(particles: Particles, diameter: float) -> list[ParticlesNeighbors]:
@@ -29,7 +30,7 @@ def detect_particle_neighbors(particles: Particles, diameter: float) -> list[Par
     o    Non neighbor
     """
     # calc particles indices that are less than DIAMETER apart
-    particles, y_floored = strip_sort_particles(particles=particles, diameter=diameter)
+    particles, y_floored, indices = strip_sort_particles(particles=particles, diameter=diameter)
     unique_ys, strip_start_indices = np.unique(y_floored, return_index=True)
     strip_start_indices = np.append(strip_start_indices, len(y_floored))
     strip_start_indices = np.append(strip_start_indices, len(y_floored))
@@ -39,11 +40,12 @@ def detect_particle_neighbors(particles: Particles, diameter: float) -> list[Par
                                                                                strip_start_indices[2:]):
         detect_neighbors_for_particles_in_strip(particles, neighbors, strip_start_index, next_strip_start_index,
                                                 next_strip_end_index, diameter)
-    assert all(all(0 <= p < particles.shape[0] for p in n) for n in neighbors)
     add_reverse_neighbors(neighbors)
-    assert all(all(0 <= p < particles.shape[0] for p in n) for n in neighbors)
     trim_neighbors(neighbors, MAX_ALLOWED_NEIGHBORS)
-    return neighbors
+    neighbors = np.array(neighbors)
+    reversed_indices_neighbors = [[indices[i] for i in particle_neighbors] for particle_neighbors in
+                                  neighbors[np.argsort(indices)]]
+    return reversed_indices_neighbors
 
 
 def detect_neighbors_for_particles_in_strip(particles: Particles, neighbors: list[ParticlesNeighbors],
@@ -55,14 +57,22 @@ def detect_neighbors_for_particles_in_strip(particles: Particles, neighbors: lis
         particle_neighbors = find_neighbors_of_particle(particle_x, particle_index_in_strip, strip_x,
                                                         next_strip_x, strip_start_index, next_strip_start_index,
                                                         diameter)
+        # TODO - tradeoff, slower collision detection, for fewer collisions. see if commenting out these lines
+        # is faster
+        #############################################################
+        particle_neighbors = np.array(particle_neighbors)
+        if len(particle_neighbors) > 0:
+            d = particles[particle_neighbors, :] - particles[particle_index_in_strip + strip_start_index, :]
+            distances = np.hypot(d[:, 0], d[:, 1])
+            particle_neighbors = particle_neighbors[distances <= diameter]
+        particle_neighbors = particle_neighbors.tolist()
+        #############################################################
         neighbors.append(particle_neighbors)
-        # assert all(all(0 <= p < particles.shape[0] for p in n) for n in neighbors)
 
 
 def add_reverse_neighbors(neighbors: list[ParticlesNeighbors]) -> None:
     for particle_index, particle_neighbors in reversed(list(enumerate(neighbors))):
         for neighbor_index in reversed(particle_neighbors):
-            assert neighbor_index < 500
             neighbors[neighbor_index].append(particle_index)
 
 
@@ -82,17 +92,14 @@ def find_neighbors_of_particle(particle_x: float, particle_index_in_strip: int, 
     # next strip
     start_of_neighbors_index_in_next_strip = np.searchsorted(next_strip_x, particle_x - diameter, side='left')
     end_of_neighbors_index_in_next_strip = np.searchsorted(next_strip_x, particle_x + diameter, side='right')
-    assert next_strip_start_index + end_of_neighbors_index_in_next_strip < 501
-    assert next_strip_start_index + start_of_neighbors_index_in_next_strip < 501
     neighbors_in_next_strip = list(range(next_strip_start_index + start_of_neighbors_index_in_next_strip,
                                          next_strip_start_index + end_of_neighbors_index_in_next_strip))
 
     return neighbors_in_strip + neighbors_in_next_strip
 
 
-def strip_sort_particles(particles: Particles, diameter: float) -> tuple[Particles, list[float]]:
+def strip_sort_particles(particles: Particles, diameter: float) -> tuple[Particles, list[float], NDArray]:
     # sorts first by X, then by Y_floored
     y_floored = np.floor(particles[:, 1] / diameter).astype(int)
     sorted_indices = np.lexsort((particles[:, 0], y_floored))
-    y_floored = y_floored[sorted_indices]
-    return particles[sorted_indices, :], y_floored
+    return particles[sorted_indices, :], y_floored[sorted_indices], sorted_indices
