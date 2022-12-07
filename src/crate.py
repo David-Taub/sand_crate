@@ -1,21 +1,25 @@
+from math import sin
+
 import numpy as np
+from nptyping import NDArray
 
 from geometry_utils import points_to_segments_distance
 from neighbor_detector import detect_particle_neighbors
-from solid_object import SolidObject
+from rigid_body import FixedRigidBody, MotoredRigidBody
 from timer import Timer
 from typings import Particles
 
 DT = 0.005
-PARTICLE_RADIUS = 0.005
+PARTICLE_RADIUS = 0.01
 DIAMETER = PARTICLE_RADIUS * 2
 WALL_COLLISION_DECAY = 0.2
 PARTICLE_MASS = 0.5
 SPRING_OVERLAP_BALANCE = 0.1
 SPRING_AMPLIFIER = 5000
 PRESSURE_AMPLIFIER = 2000
-IGNORED_PRESSURE = 0.0
-NOISE_LEVEL = 0.1
+IGNORED_PRESSURE = 0.1
+NOISE_LEVEL = 0.2
+WALL_VIRTUAL_MASS_FACTOR = 3
 VISCOSITY = 8
 
 TARGET_FRAME_RATE = 120
@@ -28,8 +32,8 @@ class Crate:
         self.particles: Particles
         self.colliders: Particles
         # N x 2 x 2
-        self.solid_objects = [
-            SolidObject(
+        self.rigid_bodies = [
+            FixedRigidBody(
                 name="edge",
                 segments=np.array(
                     [
@@ -39,19 +43,18 @@ class Crate:
                         [[0.0, 1.0], [1.0, 1.0]],
                     ]
                 ),
-                is_fixed=True,
             ),
-            SolidObject(
+            MotoredRigidBody(
                 name="box",
                 segments=np.array(
                     [
-                        [[0.4, 0.4], [0.4, 0.6]],
-                        [[0.4, 0.4], [0.6, 0.4]],
-                        [[0.6, 0.4], [0.6, 0.6]],
-                        [[0.4, 0.6], [0.6, 0.6]],
+                        [[0.55, 1.0], [0.55, 0.8]],
+                        [[0.55, 1.0], [0.6, 1.0]],
+                        [[0.6, 1.0], [0.6, 0.8]],
+                        [[0.55, 0.8], [0.6, 0.8]],
                     ]
                 ),
-                is_fixed=False,
+                velocity_func=lambda t: sin(t * 30) * np.array([1.0, 0.0])
             ),
         ]
         self.colliders_indices = [[]] * particle_count
@@ -64,14 +67,19 @@ class Crate:
         self.colliders_indices = []
         self.collider_overlaps = []
         self.collider_velocities = []
-        self.virtual_colliders = []
         self.collider_pressures = []
+        self.virtual_colliders = []
+        self.virtual_colliders_velocity = []
         self.debug_prints = ""
         self.timer = Timer()
 
     @property
-    def segments(self):
-        return np.vstack(solid_object.segments for solid_object in self.solid_objects)
+    def segments(self) -> NDArray:
+        return np.vstack(rigid_body.segments for rigid_body in self.rigid_bodies)
+
+    @property
+    def segment_velocities(self) -> NDArray:
+        return np.vstack([rigid_body.velocity] * rigid_body.segments.shape[0] for rigid_body in self.rigid_bodies)
 
     def physics_tick(self):
         with self.timer("Collisions"):
@@ -79,6 +87,8 @@ class Crate:
 
         with self.timer("Colliders"):
             self.populate_colliders()
+
+        with self.timer("Virtual Colliders"):
             self.add_wall_virtual_colliders()
 
         with self.timer("Pressure"):
@@ -90,11 +100,10 @@ class Crate:
             self.apply_gravity()
             self.apply_pressure()
             self.apply_viscosity()
-
-        with self.timer("Velocities"):
             self.apply_velocity()
 
         self.debug_prints = self.timer.report()
+        self.timer.reset()
 
     def populate_colliders(self):
         self.colliders = []
@@ -110,7 +119,8 @@ class Crate:
 
     def add_wall_virtual_colliders(self):
         self.virtual_colliders = []
-        segment_closest, distances = points_to_segments_distance(self.particles, self.segments)
+        self.virtual_colliders_velocity = []
+        nearest_segment, distances = points_to_segments_distance(self.particles, self.segments)
         for particle_index, particle in enumerate(self.particles):
             """
               segment
@@ -122,7 +132,8 @@ class Crate:
                   |
                   +
             """
-            particle_segment_closest = segment_closest[particle_index, distances[particle_index] <= PARTICLE_RADIUS]
+            touching_segments_mask = distances[particle_index] <= PARTICLE_RADIUS
+            particle_segment_closest = nearest_segment[particle_index, touching_segments_mask]
             virtual_colliders_count = particle_segment_closest.shape[0]
             if virtual_colliders_count:
                 virtual_colliders = particle - particle_segment_closest
@@ -130,25 +141,31 @@ class Crate:
                 self.collider_mass[particle_index] = np.hstack(
                     [
                         self.collider_mass[particle_index],
-                        [self.particles_mass[particle_index]] * virtual_colliders_count,
+                        [self.particles_mass[particle_index] * WALL_VIRTUAL_MASS_FACTOR] * virtual_colliders_count,
                     ]
                 )
                 self.collider_velocities[particle_index] = np.vstack(
-                    [self.collider_velocities[particle_index], [[0.0, 0.0]] * virtual_colliders_count]
+                    (self.collider_velocities[particle_index], self.segment_velocities[touching_segments_mask])
                 )
                 self.virtual_colliders.append(virtual_colliders)
+                self.virtual_colliders_velocity.append(self.segment_velocities[touching_segments_mask])
             else:
                 self.virtual_colliders.append([])
+                self.virtual_colliders_velocity.append([])
 
     def apply_wall_bounce(self):
         for particle_index in range(self.particles.shape[0]):
             if len(self.virtual_colliders[particle_index]) == 0:
                 continue
             wall_ortho = np.mean(self.virtual_colliders[particle_index], 0)
-            wall_velocity_dot = np.dot(self.particle_velocities[particle_index], wall_ortho)
-            if wall_velocity_dot < 0:
-                wall_counter_component = wall_velocity_dot * wall_ortho / np.dot(wall_ortho, wall_ortho)
-                self.particle_velocities[particle_index] -= wall_counter_component * 2 * (1 - WALL_COLLISION_DECAY)
+            wall_velocity = np.mean(self.virtual_colliders_velocity[particle_index], 0)
+            wall_particle_velocity_dot = np.dot(self.particle_velocities[particle_index], wall_ortho)
+            if wall_particle_velocity_dot < 0:
+                # particle moves toward the wall
+                normalized_wall_ortho = wall_ortho / np.dot(wall_ortho, wall_ortho)
+                wall_counter_component = - 2 * wall_particle_velocity_dot * normalized_wall_ortho
+                self.particle_velocities[particle_index] += wall_counter_component * \
+                                                            (1 - WALL_COLLISION_DECAY) + wall_velocity
 
     def compute_particle_pressures(self):
         particles_pressure = []
@@ -198,10 +215,10 @@ class Crate:
 
     def apply_gravity(self):
         self.particle_velocities += DT * self.gravity[None]
-        for solid_object in self.solid_objects:
-            if solid_object.is_fixed:
+        for rigid_body in self.rigid_bodies:
+            if isinstance(rigid_body, (FixedRigidBody, MotoredRigidBody)):
                 continue
-            solid_object.velocity += DT * self.gravity
+            rigid_body.velocity += DT * self.gravity
 
     def apply_viscosity(self):
         for i in range(self.particles.shape[0]):
@@ -220,7 +237,5 @@ class Crate:
         self.particles += DT * self.particle_velocities
         self.particles = np.clip(self.particles, PARTICLE_RADIUS / 2, 1 - PARTICLE_RADIUS / 2)
         self.particles = np.clip(self.particles, PARTICLE_RADIUS / 2, 1 - PARTICLE_RADIUS / 2)
-        for solid_object in self.solid_objects:
-            if solid_object.is_fixed:
-                continue
-            solid_object.apply_velocity(DT)
+        for rigid_body in self.rigid_bodies:
+            rigid_body.apply_velocity(DT)
