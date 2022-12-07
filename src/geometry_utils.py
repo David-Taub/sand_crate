@@ -64,27 +64,33 @@ def segments_to_segments_distance(a, b, c, d):
     # If they don't overlap then there is a closest point solution.
     # If they do overlap, there are infinite closest positions, but there is a closest distance
     if ab_cd_sin_square == 0:
-        # test if lines overlap
-        ab_dot_ac = np.dot(ab_normalized, ac)
-        ab_dot_ad = np.dot(ab_normalized, ad)
-        # Is segment B before A?
-        if ab_dot_ac <= 0 >= ab_dot_ad:
-            if np.absolute(ab_dot_ac) < np.absolute(ab_dot_ad):
+        # ac and cd are on the same line
+        ab_norm_dot_ac = np.dot(ab_normalized, ac)
+        ab_norm_dot_ad = np.dot(ab_normalized, ad)
+        if ab_norm_dot_ac <= 0 >= ab_norm_dot_ad:
+            # angles BAC and BAD are more than 90 degrees
+            if np.absolute(ab_norm_dot_ac) < np.absolute(ab_norm_dot_ad):
+                # dc->ab
                 return a, c, np.linalg.norm(ac)
             else:
-                return a, d, np.linalg.norm(ac)
+                # cd->ab
+                return a, d, np.linalg.norm(ad)
 
-        # Is segment B after A?
-        elif ab_dot_ac >= ab_norm <= ab_dot_ad:
-            if np.absolute(ab_dot_ac) < np.absolute(ab_dot_ad):
+        elif ab_norm_dot_ac >= ab_norm <= ab_norm_dot_ad:
+            # angles BAC and BAD are less than 90 degrees, and cd is after ab
+            if np.absolute(ab_norm_dot_ac) < np.absolute(ab_norm_dot_ad):
+                # ab->cd
                 return b, c, np.linalg.norm(bc)
             else:
+                # ab->dc
                 return b, d, np.linalg.norm(bd)
 
         else:
-            # Segments overlap, return distance between parallel segments
-            return None, None, np.linalg.norm(((ab_dot_ac * ab_normalized) + a) - c)
+            # ab and bd overlap,
+            ac_projected_on_ab = ab_norm_dot_ac * ab_normalized
+            return None, None, np.linalg.norm(a + ac_projected_on_ab - c)
 
+    # TODO: convert to 2d
     # non parallel segments
     detA = np.linalg.det([ac, cd_normalized, ab_cd_cross])
     detB = np.linalg.det([ac, ab_normalized, ab_cd_cross])
