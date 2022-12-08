@@ -159,7 +159,7 @@ class Crate:
                 continue
             wall_ortho = np.mean(self.virtual_colliders[particle_index], 0)
             wall_velocity = np.mean(self.virtual_colliders_velocity[particle_index], 0)
-            wall_particle_velocity_dot = np.dot(self.particle_velocities[particle_index], wall_ortho)
+            wall_particle_velocity_dot = np.dot(self.particle_velocities[particle_index] - wall_velocity, wall_ortho)
             if wall_particle_velocity_dot < 0:
                 # particle moves toward the wall
                 normalized_wall_ortho = wall_ortho / np.dot(wall_ortho, wall_ortho)

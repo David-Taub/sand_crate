@@ -3,7 +3,7 @@ from game_gui import GameGUI
 
 
 def main():
-    crate = Crate(600)
+    crate = Crate(800)
     GameGUI(crate).run_live_simulation()
     # game = GameGUI(crate)
     # game.record_simulation(300)
