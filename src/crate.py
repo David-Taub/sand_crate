@@ -161,7 +161,8 @@ class Crate:
         correction_direction = self.particles[clipping_particles_mask] - contact_point
 
         self.particles[clipping_particles_mask] += (
-                correction_direction * self.particle_radius / distance_to_contact[:, None]
+                correction_direction * (self.particle_radius - distance_to_contact[:, None]) / distance_to_contact[:,
+                                                                                               None]
         )
 
     def add_wall_virtual_colliders(self) -> None:

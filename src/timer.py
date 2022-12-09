@@ -9,6 +9,7 @@ OUTSIDE_CONTEXT = "Outside"
 class Timer:
     def __init__(self) -> None:
         self.reset()
+        self.ticks: int = 0
 
     def __call__(self, context: str = "") -> "Timer":
         self.context.append(context)
@@ -30,6 +31,8 @@ class Timer:
             self.starts[OUTSIDE_CONTEXT] = time.time()
 
     def reset(self):
+        if hasattr(self, "counters"):
+            self.ticks += min(self.counters.values())
         self.context = []
         self.starts = {OUTSIDE_CONTEXT: time.time()}
         self.durations = defaultdict(lambda: 0)
@@ -44,5 +47,6 @@ class Timer:
             ] = f"{1000 * duration / self.counters[context]:.0f} ms ({100 * duration / total_duration:.0f}%)"
         frame_duration = total_duration / min(self.counters.values())
         return yaml.dump(
-            {"Timing": contexts_report, "FPS": f"{int(1 / frame_duration)} ({1000 * frame_duration:.0f} ms)"}
+            {"Timing": contexts_report, "FPS": f"{int(1 / frame_duration)} ({1000 * frame_duration:.0f} ms)",
+             "Ticks": f"{self.ticks:,}"}
         )
