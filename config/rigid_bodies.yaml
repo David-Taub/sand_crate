@@ -1,7 +1,7 @@
 playback:
   live_simulation: false
   ticks_to_record: 1000
-  recording_output_file_path: "../data/recording.zarr"
+  recording_output_dir_path: "../data/recording"
 world:
   consts:
     dt: 0.002

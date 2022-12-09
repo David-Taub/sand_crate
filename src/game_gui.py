@@ -45,21 +45,26 @@ class GameGUI:
             pygame.display.update()
         pygame.quit()
 
-    def record_simulation(self, num_of_ticks: int, recording_output_file_path: str) -> None:
-        particles_recording = np.zeros([num_of_ticks] + list(self.crate.particles.shape))
+    def record_simulation(self, num_of_ticks: int, recording_output_dir_path: str) -> None:
+        particles_recording = np.zeros([num_of_ticks, self.crate.max_particles, 2])
+        segments_recording = np.zeros([num_of_ticks] + list(self.crate.segments.shape))
         for i in tqdm(range(num_of_ticks), desc="Simulating"):
             self.crate.physics_tick()
-            particles_recording[i] = self.crate.particles
-        zarr.save(recording_output_file_path, particles_recording)
+            particles_recording[i, : self.crate.particle_count] = self.crate.particles
+            segments_recording[i] = self.crate.segments
+        zarr.save(str(Path(recording_output_dir_path) / "particles"), particles_recording)
+        zarr.save(str(Path(recording_output_dir_path) / "segments"), segments_recording)
 
-    def show_recording(self, recording_file_path: Path) -> None:
-        particles_recording = zarr.load(str(recording_file_path))
+    def show_recording(self, recording_dir_path: str) -> None:
+        particles_recording = zarr.load(str(Path(recording_dir_path) / "particles"))
+        segments_recording = zarr.load(str(Path(recording_dir_path) / "segments"))
         self.init_display()
         while not self.done:
-            for particles in particles_recording:
+            for particles, segments in zip(particles_recording, segments_recording):
                 self.screen.fill(BACKGROUND_COLOR)
                 self.handle_input()
                 self.display_particles(particles, self.crate.particle_radius)
+                self.display_segments(segments)
                 pygame.display.update()
                 if self.done:
                     break

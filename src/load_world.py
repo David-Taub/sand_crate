@@ -20,7 +20,7 @@ class WorldConfig:
 class PlaybackConfig:
     live_simulation: bool
     ticks_to_record: bool
-    recording_output_file_path: str
+    recording_output_dir_path: str
 
 
 @dataclass
@@ -42,7 +42,7 @@ def load_config() -> Config:
     playback_config = PlaybackConfig(
         live_simulation=raw_playback_config["live_simulation"],
         ticks_to_record=raw_playback_config["ticks_to_record"],
-        recording_output_file_path=raw_playback_config["recording_output_file_path"],
+        recording_output_dir_path=raw_playback_config["recording_output_dir_path"],
     )
     return Config(world_config=world_config, playback_config=playback_config)
 
