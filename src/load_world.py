@@ -16,14 +16,35 @@ class WorldConfig:
     consts: dict
 
 
-def load_world_config() -> WorldConfig:
+@dataclass
+class PlaybackConfig:
+    live_simulation: bool
+    ticks_to_record: bool
+    recording_output_file_path: str
+
+
+@dataclass
+class Config:
+    world_config: WorldConfig
+    playback_config: PlaybackConfig
+
+
+def load_config() -> Config:
     with open(BODIES_CONFIG_FILE_PATH, "r") as f:
-        world_config = yaml.safe_load(f)
-    return WorldConfig(
-        rigid_bodies=build_rigid_bodies(world_config.get("rigid_bodies", [])),
-        particle_sources=build_particle_sources(world_config.get("particle_sources")),
-        consts=world_config.get("consts"),
+        raw_config = yaml.safe_load(f)
+    raw_world_config = raw_config["world"]
+    world_config = WorldConfig(
+        rigid_bodies=build_rigid_bodies(raw_world_config.get("rigid_bodies", [])),
+        particle_sources=build_particle_sources(raw_world_config.get("particle_sources")),
+        consts=raw_world_config.get("consts"),
     )
+    raw_playback_config = raw_config["playback"]
+    playback_config = PlaybackConfig(
+        live_simulation=raw_playback_config["live_simulation"],
+        ticks_to_record=raw_playback_config["ticks_to_record"],
+        recording_output_file_path=raw_playback_config["recording_output_file_path"],
+    )
+    return Config(world_config=world_config, playback_config=playback_config)
 
 
 def build_particle_sources(particle_source_configs):

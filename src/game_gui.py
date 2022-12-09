@@ -12,11 +12,9 @@ from typings import Particles
 
 SCREEN_X = 1000
 SCREEN_Y = 1000
-
+TEXT_MARGIN = 6
 BACKGROUND_COLOR = (0, 0, 0)
 LINE_COLOR = (255, 255, 255)
-
-DEFAULT_RECORDING_PATH = Path("../data/recording.zarr")
 
 
 class GameGUI:
@@ -25,13 +23,14 @@ class GameGUI:
         self.done = False
         self.screen: Optional[pygame.Surface] = None
         self.font: Optional[pygame.Font] = None
+        self.current_physical_field_index: int = 0
 
     def init_display(self):
         pygame.init()
         pygame.font.init()
         pygame.display.set_caption("SandCrate")
         self.screen = pygame.display.set_mode((SCREEN_X, SCREEN_Y))
-        self.font = pygame.font.SysFont("monospace", SCREEN_X // 50)
+        self.font = pygame.font.SysFont("monospace", SCREEN_X // 60)
 
     def run_live_simulation(self) -> None:
         self.init_display()
@@ -46,21 +45,18 @@ class GameGUI:
             pygame.display.update()
         pygame.quit()
 
-    def record_simulation(
-            self, num_of_ticks: int = 2000, recording_output_file_path: Path = DEFAULT_RECORDING_PATH
-    ) -> None:
+    def record_simulation(self, num_of_ticks: int, recording_output_file_path: str) -> None:
         particles_recording = np.zeros([num_of_ticks] + list(self.crate.particles.shape))
         for i in tqdm(range(num_of_ticks), desc="Simulating"):
             self.crate.physics_tick()
             particles_recording[i] = self.crate.particles
-        zarr.save(str(recording_output_file_path), particles_recording)
+        zarr.save(recording_output_file_path, particles_recording)
 
-    def show_recording(self, recording_file_path: Path = DEFAULT_RECORDING_PATH) -> None:
+    def show_recording(self, recording_file_path: Path) -> None:
         particles_recording = zarr.load(str(recording_file_path))
         self.init_display()
         while not self.done:
             for particles in particles_recording:
-                # self.clock.tick(TARGET_FRAME_RATE)
                 self.screen.fill(BACKGROUND_COLOR)
                 self.handle_input()
                 self.display_particles(particles, self.crate.particle_radius)
@@ -78,6 +74,14 @@ class GameGUI:
                     self.crate.gravity = np.array([-9.81, 0.0])
                 if event.key == pygame.K_q:
                     self.done = True
+                if event.key == pygame.K_w:
+                    self.current_physical_field_index -= 1
+                if event.key == pygame.K_s:
+                    self.current_physical_field_index += 1
+                if event.key == pygame.K_a:
+                    self.edit_physics(increase=False)
+                if event.key == pygame.K_d:
+                    self.edit_physics(increase=True)
             if event.type == pygame.KEYUP:
                 self.crate.gravity = np.array([0.0, 9.81])
 
@@ -91,8 +95,9 @@ class GameGUI:
                 width=2,
             )
 
-    def display_particles(self, particles: Particles, particle_radius: float,
-                          particles_color: Optional[NDArray] = None) -> None:
+    def display_particles(
+            self, particles: Particles, particle_radius: float, particles_color: Optional[NDArray] = None
+    ) -> None:
         particle_radius = int(SCREEN_X * particle_radius)
         for i in range(particles.shape[0]):
             particle_center = self.crate_to_screen_coord(particles[i, 0], particles[i, 1])
@@ -107,7 +112,26 @@ class GameGUI:
     def crate_to_screen_coord(x: float, y: float) -> tuple[int, int]:
         return int(x * (SCREEN_X - 1)), int(y * (SCREEN_Y - 1))
 
-    def display_debug(self, text: str):
+    def display_debug(self, text: str) -> None:
         for line, line_text in enumerate(text.split("\n")):
             text_surface = self.font.render(line_text, True, (255, 255, 255))
-            self.screen.blit(text_surface, (0, line * self.font.get_linesize()))
+
+            self.screen.blit(text_surface, (TEXT_MARGIN, TEXT_MARGIN + line * self.font.get_linesize()))
+
+    def edit_physics(self, increase: bool, change_factor: float = 0.1) -> None:
+        physical_fields = [
+            "particle_radius",
+            "dt",
+            "wall_collision_decay",
+            "spring_overlap_balance",
+            "spring_amplifier",
+            "pressure_amplifier",
+            "ignored_pressure",
+            "collider_noise_level",
+            "viscosity",
+            "max_particles",
+        ]
+        physical_field = physical_fields[self.current_physical_field_index % len(physical_fields)]
+        current_value = getattr(self.crate, physical_field)
+        change_rate = 1 + change_factor if increase else 1 - change_factor
+        setattr(self.crate, physical_field, current_value * change_rate)

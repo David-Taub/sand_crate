@@ -16,10 +16,20 @@ class RigidBody:
     segments: NDArray  # segments x dots(2) x dims(2)
     name: str = ""
     mass: float = 1.0
-    velocity: NDArray = np.array([0.0, 0.0])
+    center_velocity: NDArray = np.array([0.0, 0.0])
     angular_velocity: float = 0.00
     scale: list[float] = field(default_factory=lambda: [1.0, 1.0])
     position: list[float] = field(default_factory=lambda: [0.0, 0.0])
+
+    def segment_velocities(self) -> NDArray:
+        # K x 2
+        segment_positions_to_center = np.mean(self.segments, 1) - self.center_velocity[None]
+        segment_distances_to_center = np.hypot(segment_positions_to_center[:, 0], segment_positions_to_center[:, 1])
+        segment_positions_to_velocity_direction = segment_positions_to_center[:, [1, 0]] * np.array([[1, -1]])
+        return (
+                self.center_velocity
+                + segment_positions_to_velocity_direction * segment_distances_to_center[None] * self.angular_velocity
+        )
 
     def place_in_world(self):
         self.segments *= np.array(self.scale)[None]
@@ -30,7 +40,7 @@ class RigidBody:
         return np.mean(self.segments, (0, 1))
 
     def apply_velocity(self, dt: float) -> None:
-        self.segments += dt * self.velocity[None, None]
+        self.segments += dt * self.center_velocity[None, None]
         self.rotate_object_around_center(dt * self.angular_velocity)
 
     def rotate_object_around_center(self, theta) -> None:
