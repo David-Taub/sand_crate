@@ -7,7 +7,7 @@ import zarr as zarr
 from nptyping import NDArray
 from tqdm import tqdm
 
-from crate import Crate, PARTICLE_RADIUS
+from crate import Crate
 from typings import Particles
 
 SCREEN_X = 1000
@@ -15,6 +15,8 @@ SCREEN_Y = 1000
 
 BACKGROUND_COLOR = (0, 0, 0)
 LINE_COLOR = (255, 255, 255)
+
+DEFAULT_RECORDING_PATH = Path("../data/recording.zarr")
 
 
 class GameGUI:
@@ -38,14 +40,14 @@ class GameGUI:
             self.crate.physics_tick()
 
             self.screen.fill(BACKGROUND_COLOR)
-            self.display_particles(self.crate.particles, self.crate.particles_pressure)
+            self.display_particles(self.crate.particles, self.crate.particle_radius, self.crate.particles_pressure)
             self.display_segments(self.crate.segments)
             self.display_debug(self.crate.debug_prints)
             pygame.display.update()
         pygame.quit()
 
     def record_simulation(
-            self, num_of_ticks: int = 2000, recording_output_file_path: Path = Path("recording.zarr")
+            self, num_of_ticks: int = 2000, recording_output_file_path: Path = DEFAULT_RECORDING_PATH
     ) -> None:
         particles_recording = np.zeros([num_of_ticks] + list(self.crate.particles.shape))
         for i in tqdm(range(num_of_ticks), desc="Simulating"):
@@ -53,7 +55,7 @@ class GameGUI:
             particles_recording[i] = self.crate.particles
         zarr.save(str(recording_output_file_path), particles_recording)
 
-    def show_recording(self, recording_file_path: Path = Path("recording.zarr")) -> None:
+    def show_recording(self, recording_file_path: Path = DEFAULT_RECORDING_PATH) -> None:
         particles_recording = zarr.load(str(recording_file_path))
         self.init_display()
         while not self.done:
@@ -61,7 +63,7 @@ class GameGUI:
                 # self.clock.tick(TARGET_FRAME_RATE)
                 self.screen.fill(BACKGROUND_COLOR)
                 self.handle_input()
-                self.display_particles(particles)
+                self.display_particles(particles, self.crate.particle_radius)
                 pygame.display.update()
                 if self.done:
                     break
@@ -89,8 +91,9 @@ class GameGUI:
                 width=2,
             )
 
-    def display_particles(self, particles: Particles, particles_color: Optional[NDArray] = None) -> None:
-        particle_radius = int(SCREEN_X * PARTICLE_RADIUS)
+    def display_particles(self, particles: Particles, particle_radius: float,
+                          particles_color: Optional[NDArray] = None) -> None:
+        particle_radius = int(SCREEN_X * particle_radius)
         for i in range(particles.shape[0]):
             particle_center = self.crate_to_screen_coord(particles[i, 0], particles[i, 1])
             if particles_color is not None:
