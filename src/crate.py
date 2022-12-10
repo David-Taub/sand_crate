@@ -3,7 +3,7 @@ import yaml
 from nptyping import NDArray
 
 from geometry_utils import points_to_segments_distance
-from load_world import WorldConfig
+from load_config import WorldConfig
 from neighbor_detector import detect_particle_neighbors
 from rigid_body import FixedRigidBody, MotoredRigidBody
 from timer import Timer
@@ -80,6 +80,7 @@ class Crate:
         with self.debug_timer("Forces"):
             self.apply_gravity()
             self.apply_pressure()
+            self.apply_spring()
             self.apply_viscosity()
             self.apply_wall_bounce()
             self.apply_particles_velocity()
@@ -283,7 +284,8 @@ class Crate:
             if self.colliders[i].shape[0] == 0:
                 continue
             spring_pull = self.spring_overlap_balance - self.collider_overlaps[i]
-            self.particle_velocities[i] += self.dt * self.spring_amplifier * spring_pull * self.colliders[i]
+            self.particle_velocities[i] += np.mean(
+                self.dt * self.spring_amplifier * spring_pull[:, None] * self.colliders[i], 0)
 
     def apply_particles_velocity(self) -> None:
         self.particles += self.dt * self.particle_velocities

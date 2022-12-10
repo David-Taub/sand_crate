@@ -1,7 +1,7 @@
 playback:
-  live_simulation: false
+  live_simulation: true
   ticks_to_record: 10000
-  recording_output_dir_path: "../data/recording"
+  recording_output_dir_path: "../data/recordings"
 world:
   consts:
     dt: 0.001

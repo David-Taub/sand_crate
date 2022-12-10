@@ -1,11 +1,13 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import yaml
 
 from particle_source import ParticleSource
-from rigid_body import MotoredRigidBody, FixedRigidBody, RigidBody, BODIES_CONFIG_FILE_PATH
+from rigid_body import MotoredRigidBody, FixedRigidBody, RigidBody
 
+CONFIG_FILE_PATH = Path("../config/config.yaml")
 BODY_TYPE_TO_CLASS = {"motored": MotoredRigidBody, "fixed": FixedRigidBody, "free": RigidBody}
 
 
@@ -30,7 +32,7 @@ class Config:
 
 
 def load_config() -> Config:
-    with open(BODIES_CONFIG_FILE_PATH, "r") as f:
+    with open(CONFIG_FILE_PATH, "r") as f:
         raw_config = yaml.safe_load(f)
     raw_world_config = raw_config["world"]
     world_config = WorldConfig(

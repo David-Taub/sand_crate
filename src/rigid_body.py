@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Callable
 
 import numpy as np
@@ -8,7 +7,6 @@ from nptyping import NDArray
 Segment = tuple[float, float]
 
 # Position = Union[tuple[float, float], list[float, float], NDArray[float]]
-BODIES_CONFIG_FILE_PATH = Path("../config/rigid_bodies.yaml")
 
 
 @dataclass

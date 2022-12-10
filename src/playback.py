@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -8,6 +9,7 @@ from nptyping import NDArray
 from tqdm import tqdm
 
 from crate import Crate
+from load_config import CONFIG_FILE_PATH
 from typings import Particles
 
 SCREEN_X = 1000
@@ -17,7 +19,7 @@ BACKGROUND_COLOR = (0, 0, 0)
 LINE_COLOR = (255, 255, 255)
 
 
-class GameGUI:
+class Playback:
     def __init__(self, crate: Crate) -> None:
         self.crate = crate
         self.done = False
@@ -54,6 +56,7 @@ class GameGUI:
             segments_recording[i] = self.crate.segments
         zarr.save(str(Path(recording_output_dir_path) / "particles"), particles_recording)
         zarr.save(str(Path(recording_output_dir_path) / "segments"), segments_recording)
+        shutil.copy(CONFIG_FILE_PATH, recording_output_dir_path)
 
     def show_recording(self, recording_dir_path: str) -> None:
         particles_recording = zarr.load(str(Path(recording_dir_path) / "particles"))
