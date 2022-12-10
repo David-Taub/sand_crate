@@ -13,7 +13,6 @@ Segment = tuple[float, float]
 class RigidBody:
     segments: NDArray  # segments x dots(2) x dims(2)
     name: str = ""
-    mass: float = 1.0
     center_velocity: NDArray = np.array([0.0, 0.0])
     angular_velocity: float = 0.00
     scale: list[float] = field(default_factory=lambda: [1.0, 1.0])

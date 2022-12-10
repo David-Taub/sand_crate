@@ -47,6 +47,9 @@ class Timer:
             ] = f"{1000 * duration / self.counters[context]:.0f} ms ({100 * duration / total_duration:.0f}%)"
         frame_duration = total_duration / min(self.counters.values())
         return yaml.dump(
-            {"Timing": contexts_report, "FPS": f"{int(1 / frame_duration)} ({1000 * frame_duration:.0f} ms)",
-             "Ticks": f"{self.ticks:,}"}
+            {
+                "Timing": contexts_report,
+                "FPS": f"{int(1 / frame_duration)} ({1000 * frame_duration:.0f} ms)",
+                "Ticks": f"{self.ticks:,}",
+            }
         )
