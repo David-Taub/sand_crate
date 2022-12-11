@@ -4,7 +4,7 @@ from math import ceil, floor
 import numpy as np
 import pytest
 
-from neighbor_detector import detect_particle_neighbors
+from collision_detector import detect_particle_neighbors
 from src.geometry_utils import points_to_segments_distance
 
 PARTICLES_COUNT = 35

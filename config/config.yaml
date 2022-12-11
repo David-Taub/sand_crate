@@ -8,13 +8,15 @@ world:
     particle_radius: 0.009
     wall_collision_decay: 0.25
     spring_overlap_balance: 0.5
-    spring_amplifier: 10000
-    pressure_amplifier: 10000
+    spring_amplifier: 100
+    pressure_amplifier: 100
     ignored_pressure: 0.2
     collider_noise_level: 0.1
     viscosity: 7
     gravity: [ 0, 9.8 ]
     max_particles: 500
+    surface_smoothing: 0.1
+    target_pressure: 0.1
 
   particle_sources:
     - radius: 0.03
@@ -39,7 +41,7 @@ world:
           [ [ 0.0, 1.0 ], [ 1.0, 1.0 ] ],
         ]
         angular_velocity_func: "lambda t: np.cos(t * 4)*1.4"
-        scale: [ 0.3, 0.15 ]
+        scale: [ 0.4, 0.2 ]
         position: [ 0.3, 0.5 ]
     - fixed:
         name: buttom_cup

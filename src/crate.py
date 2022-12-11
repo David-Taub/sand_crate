@@ -2,19 +2,19 @@ import numpy as np
 import yaml
 from nptyping import NDArray
 
+from collision_detector import detect_particle_collisions
 from geometry_utils import points_to_segments_distance
 from load_config import WorldConfig
-from neighbor_detector import detect_particle_neighbors
 from rigid_body import FixedRigidBody, MotoredRigidBody
 from timer import Timer
 
 
 class Crate:
+    # TODO: make colliders into a 3d array, with zeros
     def __init__(self, world_config: WorldConfig) -> None:
         self.particles = np.zeros((0, 2))
         self.particle_velocities = np.zeros((0, 2))
         self.particles_pressure = np.zeros((0, 1))
-        self.colliders_indices = [[]]
         self.colliders = []
         self.colliders_indices = []
         self.collider_overlaps = []
@@ -33,11 +33,16 @@ class Crate:
         self.spring_overlap_balance = world_config.consts["spring_overlap_balance"]
         self.spring_amplifier = world_config.consts["spring_amplifier"]
         self.pressure_amplifier = world_config.consts["pressure_amplifier"]
+        self.surface_smoothing = world_config.consts["surface_smoothing"]
+        self.target_pressure = world_config.consts["target_pressure"]
         self.ignored_pressure = world_config.consts["ignored_pressure"]
         self.collider_noise_level = world_config.consts["collider_noise_level"]
         self.viscosity = world_config.consts["viscosity"]
         self.max_particles = world_config.consts["max_particles"]
         self.gravity = np.array(world_config.consts["gravity"])
+
+    def colliders_count(self, particle_index: int) -> int:
+        return self.colliders[particle_index].shape[0]
 
     @property
     def diameter(self) -> float:
@@ -62,7 +67,7 @@ class Crate:
         self.remove_particles()
         self.apply_bodies_velocity()
         with self.debug_timer("Collisions"):
-            self.colliders_indices = detect_particle_neighbors(particles=self.particles, diameter=self.diameter)
+            self.colliders_indices = detect_particle_collisions(particles=self.particles, diameter=self.diameter)
 
         with self.debug_timer("Colliders"):
             self.populate_colliders()
@@ -73,12 +78,14 @@ class Crate:
         with self.debug_timer("Pressure"):
             self.compute_particle_pressures()
             self.compute_collider_pressures()
+            self.add_virtual_collider_pressure_and_overlap()
 
         with self.debug_timer("Forces"):
             self.apply_gravity()
             self.apply_pressure()
-            self.apply_spring()
+            # self.apply_spring()
             self.apply_viscosity()
+            self.apply_tension()
             self.apply_wall_bounce()
             self.apply_particles_velocity()
 
@@ -109,6 +116,7 @@ class Crate:
 
     def populate_colliders(self) -> None:
         self.colliders = []
+        self.collider_distances = []
         self.collider_velocities = []
         for particle_index in range(self.particle_count):
             collider_indices = self.colliders_indices[particle_index]
@@ -116,7 +124,10 @@ class Crate:
             particle_colliders += (
                     (np.random.rand(len(collider_indices), 2) - 0.5) * self.diameter * self.collider_noise_level
             )
-            self.colliders.append(self.particles[particle_index] - particle_colliders)
+            relative_colliders = self.particles[particle_index] - particle_colliders
+            collider_distances = np.hypot(relative_colliders[:, 0], relative_colliders[:, 1])
+            self.collider_distances.append(collider_distances)
+            self.colliders.append(relative_colliders / collider_distances[:, None])
             self.collider_velocities.append(self.particle_velocities[collider_indices])
 
     def fix_clipping_particles(self, distances: NDArray, nearest_point_in_segment: NDArray) -> None:
@@ -183,11 +194,10 @@ class Crate:
                 self.virtual_colliders.append(virtual_colliders)
                 self.virtual_colliders_velocity.append(self.segment_velocities[touching_segments_mask])
             else:
-                self.virtual_colliders.append([])
-                self.virtual_colliders_velocity.append([])
+                self.virtual_colliders.append(np.array([]))
+                self.virtual_colliders_velocity.append(np.array([]))
 
     def apply_wall_bounce(self) -> None:
-        self.wall_bounce_velocity = np.zeros(self.particle_count, 2)
         for particle_index in range(self.particle_count):
             if len(self.virtual_colliders[particle_index]) == 0:
                 continue
@@ -198,24 +208,22 @@ class Crate:
                 # particle moves toward the wall
                 normalized_wall_ortho = wall_ortho / np.dot(wall_ortho, wall_ortho)
                 wall_counter_component = -2 * wall_particle_velocity_dot * normalized_wall_ortho
-                self.wall_bounce_velocity[particle_index] = (
+                self.particle_velocities[particle_index] += (
                         wall_counter_component * (1 - self.wall_collision_decay) + wall_velocity
                 )
 
     def compute_particle_pressures(self) -> None:
         particles_pressure = []
         self.collider_overlaps = []
-        for i in range(self.particle_count):
-            if self.colliders[i].shape[0] == 0:
+        for particle_index in range(self.particle_count):
+            if self.colliders_count(particle_index) == 0:
                 particles_pressure.append(0)
-                self.collider_overlaps.append([])
+                self.collider_overlaps.append(np.array([]))
                 continue
             # C
-            collider_distances = np.hypot(self.colliders[i][:, 0], self.colliders[i][:, 1])
-            # C
-            collider_overlaps = 1 - np.clip(collider_distances / self.diameter, 0, 1)
+            collider_overlaps = 1 - np.clip(self.collider_distances[particle_index] / self.diameter, 0, 1)
             self.collider_overlaps.append(collider_overlaps)
-            particle_pressure = np.sum(collider_overlaps, 0)  # total overlap
+            particle_pressure = np.sum(collider_overlaps, 0)
             particle_pressure = np.maximum(0, particle_pressure - self.ignored_pressure)
             particles_pressure.append(particle_pressure)
         assert all(n >= 0 for n in particles_pressure)
@@ -224,54 +232,83 @@ class Crate:
     def compute_collider_pressures(self) -> None:
         self.collider_pressures = []
         for particle_index in range(self.particle_count):
-            if self.colliders[particle_index].shape[0] == 0:
-                self.collider_pressures.append([])
+            if self.colliders_count(particle_index) == 0:
+                self.collider_pressures.append(np.array([]))
                 continue
             particle_collider_pressures = self.particles_pressure[self.colliders_indices[particle_index]]
-            # add virtual particle pressure
-            particle_collider_pressures = np.append(
-                particle_collider_pressures,
-                [0] * (self.colliders[particle_index].shape[0] - len(self.colliders_indices[particle_index])),
-            )
             self.collider_pressures.append(particle_collider_pressures)
 
-    def apply_pressure(self) -> None:
-        self.pressure_velocity = np.zeros(self.particle_count, 2)
+    def add_virtual_collider_pressure_and_overlap(self):
         for particle_index in range(self.particle_count):
-            if self.colliders[particle_index].shape[0] == 0:
+            self.collider_overlaps[particle_index] = np.append(self.collider_overlaps[particle_index],
+                                                               [0] * len(self.virtual_colliders[particle_index]))
+            self.collider_pressures[particle_index] = np.append(self.collider_pressures[particle_index],
+                                                                [0] * len(self.virtual_colliders[particle_index]))
+
+    def apply_pressure(self) -> None:
+        for particle_index in range(self.particle_count):
+            if self.colliders_count(particle_index) == 0:
                 continue
 
             # C x 2
-            weighted_colliders = self.colliders[particle_index] * (self.particles_pressure[particle_index] +
-                                                                   self.collider_pressures[particle_index])[:, None]
+            weighted_colliders = (
+                    self.colliders[particle_index]
+                    * (self.particles_pressure[particle_index] + self.collider_pressures[particle_index])[:, None]
+            )
 
-            self.pressure_velocity[particle_index] = self.dt * self.pressure_amplifier * np.sum(weighted_colliders, 0)
+            self.particle_velocities[particle_index] += self.dt * self.pressure_amplifier * np.sum(weighted_colliders,
+                                                                                                   0)
 
     def apply_gravity(self) -> None:
-        self.gravity_velocity = np.ones(self.particle_count, 2) * self.dt * self.gravity[None]
+        self.particle_velocities += self.dt * self.gravity[None]
         for rigid_body in self.rigid_bodies:
             if isinstance(rigid_body, (FixedRigidBody, MotoredRigidBody)):
                 continue
             rigid_body.center_velocity += self.dt * self.gravity
 
     def apply_viscosity(self) -> None:
-        self.viscosity_velocity = np.zeros(self.particle_count, 2)
 
-        for i in range(self.particle_count):
-            self.viscosity_velocity[i] = (
-                    self.dt * self.viscosity * np.sum(self.collider_velocities[i] - self.particle_velocities[i], 0)
+        for particle_index in range(self.particle_count):
+            self.particle_velocities[particle_index] += (
+                    self.dt
+                    * self.viscosity
+                    * np.sum(self.collider_velocities[particle_index] - self.particle_velocities[particle_index], 0)
             )
 
     def apply_spring(self) -> None:
-        self.spring_velocity = np.zeros(self.particle_count, 2)
-        for i in range(self.particle_count):
-            if self.colliders[i].shape[0] == 0:
+        for particle_index in range(self.particle_count):
+            if self.colliders_count(particle_index) == 0:
                 continue
             # C
-            spring_pull = self.spring_overlap_balance - self.collider_overlaps[i]
-            self.spring_velocity[i] = np.mean(
-                self.dt * self.spring_amplifier * spring_pull[:, None] * self.colliders[i], 0
+            spring_pull = self.spring_overlap_balance - self.collider_overlaps[particle_index]
+            self.particle_velocities[particle_index] += np.mean(
+                self.dt * self.spring_amplifier * spring_pull[:, None] * self.colliders[particle_index], 0
             )
+
+    def apply_tension(self) -> None:
+        # P x 2
+        surface_normals = np.zeros((self.particle_count, 2))
+        for i in range(self.particle_count):
+            if len(self.collider_overlaps[i]) == 0:
+                continue
+            surface_normals[i] = np.sum(
+                ((1 - self.collider_overlaps[i]) * self.collider_overlaps[i])[:, None] * self.colliders[i], 0)
+        for i in range(self.particle_count):
+            if len(self.collider_overlaps[i]) == 0:
+                continue
+            # C x 2
+            normal_deltas = surface_normals[i][None] - surface_normals[self.colliders_indices[i]]
+            # C
+            normals_alignment = np.sum(normal_deltas * self.colliders[i], 1) * self.surface_smoothing
+            # C
+            target_pressure_fix = self.collider_pressures[i] + self.particles_pressure[i] - 2 * self.target_pressure
+            self.particle_velocities[i] += self.dt * np.sum(
+                (normals_alignment + target_pressure_fix)[:, None] * self.colliders[i], 0)
+
+        # s[i] = sum((1 - w[i, j]) * w[i, j] * n[i, j], j)
+        # A[i] = a * (w[i] + w[j] - 2 * w0)
+        # B[i] = b * dot(s[j] - s[i], n[i, j]))
+        # v[i] ← v[i] - Δt * (A[i] + B[i]) * n[i, j]
 
     def apply_particles_velocity(self) -> None:
         self.particles += self.dt * self.particle_velocities
