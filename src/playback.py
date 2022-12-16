@@ -127,19 +127,8 @@ class Playback:
             self.screen.blit(text_surface, (TEXT_MARGIN, TEXT_MARGIN + line * self.font.get_linesize()))
 
     def edit_physics(self, increase: bool, change_factor: float = 0.1) -> None:
-        physical_fields = [
-            "particle_radius",
-            "dt",
-            "wall_collision_decay",
-            "spring_overlap_balance",
-            "spring_amplifier",
-            "pressure_amplifier",
-            "ignored_pressure",
-            "collider_noise_level",
-            "viscosity",
-            "max_particles",
-        ]
-        physical_field = physical_fields[self.current_physical_field_index % len(physical_fields)]
-        current_value = getattr(self.crate, physical_field)
+        coefficients = self.crate.editable_coefficients()
+        coefficient = coefficients[self.current_physical_field_index % len(coefficients)]
+        current_value = getattr(self.crate, coefficient)
         change_rate = 1 + change_factor if increase else 1 - change_factor
-        setattr(self.crate, physical_field, current_value * change_rate)
+        setattr(self.crate, coefficient, current_value * change_rate)

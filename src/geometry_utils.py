@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.linalg import norm
+from nptyping import NDArray
 
 from typings import Particles
 
@@ -45,7 +45,7 @@ def segments_to_segments_distance(a, b, c, d):
     """
 
     # If clampAll=True, set all clamps to True
-    # Calculate denomitator
+    # Calculate denominator
     ab = b - a
     ac = c - a
     ad = d - a
@@ -130,3 +130,58 @@ def segments_to_segments_distance(a, b, c, d):
         pA = a + (ab_normalized * dot)
 
     return pA, pB, np.linalg.norm(pA - pB)
+
+
+def cross_2d(v1: NDArray, v2: NDArray) -> NDArray:
+    # N x 2, N x 2 -> N
+    return v1[:, 0] * v2[:, 1] - v1[:, 1] * v2[:, 0]
+
+
+def calc_cross_coefficient(a, ab, c, cd):
+    # all - N x 2 -> N
+    return cross_2d(a - c, cd) / cross_2d(cd, ab)
+
+
+def pad_segments(segments: NDArray, pad_distance: float) -> NDArray:
+    # K x 2 x 2 -> 2K x 2 x 2
+    a = segments[:, 0, :]
+    b = segments[:, 1, :]
+    ab = b - a
+    prep_ab = np.hstack((ab[:, 1, None], -ab[:, 0, None]))
+    offset = prep_ab * pad_distance / np.hypot(prep_ab[:, 0], prep_ab[:, 1])[:, None]
+    padded_segments1 = np.hstack(((a + offset)[:, None], (b + offset)[:, None]))
+    padded_segments2 = np.hstack(((a - offset)[:, None], (b - offset)[:, None]))
+    return np.vstack((padded_segments1, padded_segments2))
+
+
+def segments_crossings(segments1: NDArray, segments2: NDArray) -> NDArray:
+    """
+         * C
+         |
+    A    |     B
+    *----+-----*
+         |
+         |
+         * D
+    """
+    # N x 2
+    a = segments1[:, 0, :]
+    b = segments1[:, 1, :]
+    # K x 2
+    c = segments2[:, 0, :]
+    d = segments2[:, 1, :]
+
+    # Find the 4 orientations required for
+    # the general and special cases
+    return np.logical_and(orientation(a, b, c) != orientation(a, b, d),
+                          (orientation(c, d, a) != orientation(c, d, b)).T)
+
+
+def orientation(p: NDArray, q: NDArray, r: NDArray) -> NDArray:
+    # -1 -> ccw, 1 -> cw, 0 -> on line
+    # p - N x 2
+    # q - N x 2
+    # r - K x 2
+    # return - N x K
+    return np.sign(((q[:, 1, None] - p[:, 1, None]) * (r[None, :, 0] - q[:, 0, None])) - \
+                   ((q[:, 0, None] - p[:, 0, None]) * (r[None, :, 1] - q[:, 1, None])))

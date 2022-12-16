@@ -3,20 +3,20 @@ playback:
   ticks_to_record: 10000
   recording_output_dir_path: "../data/recordings"
 world:
-  consts:
+  coefficients:
     dt: 0.003
     particle_radius: 0.009
     wall_collision_decay: 0.25
     spring_overlap_balance: 0.5
     spring_amplifier: 100
-    pressure_amplifier: 100
-    ignored_pressure: 0.2
+    pressure_amplifier: 30
+    ignored_pressure: 0.5
     collider_noise_level: 0.1
     viscosity: 7
+    max_particles: 220
+    surface_smoothing: 30
+    target_pressure: -2
     gravity: [ 0, 9.8 ]
-    max_particles: 500
-    surface_smoothing: 0.1
-    target_pressure: 0.1
 
   particle_sources:
     - radius: 0.03
@@ -40,15 +40,15 @@ world:
           [ [ 1.0, 0.0 ], [ 1.0, 1.0 ] ],
           [ [ 0.0, 1.0 ], [ 1.0, 1.0 ] ],
         ]
-        angular_velocity_func: "lambda t: np.cos(t * 4)*1.4"
-        scale: [ 0.4, 0.2 ]
+        angular_velocity_func: "lambda t: np.cos(t * 5) * 1.4"
+        scale: [ 0.5, 0.2 ]
         position: [ 0.3, 0.5 ]
-    - fixed:
-        name: buttom_cup
-        segments: [
-          [ [ 0.0, 0.0 ], [ 0.0, 1.0 ] ],
-          [ [ 1.0, 0.0 ], [ 1.0, 1.0 ] ],
-          [ [ 0.0, 1.0 ], [ 1.0, 1.0 ] ],
-        ]
-        scale: [ 0.8, 0.05 ]
-        position: [ 0.1, 0.9 ]
+#    - fixed:
+#        name: buttom_cup
+#        segments: [
+#          [ [ 0.0, 0.0 ], [ 0.0, 1.0 ] ],
+#          [ [ 1.0, 0.0 ], [ 1.0, 1.0 ] ],
+#          [ [ 0.0, 1.0 ], [ 1.0, 1.0 ] ],
+#        ]
+#        scale: [ 0.8, 0.05 ]
+#        position: [ 0.1, 0.9 ]

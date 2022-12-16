@@ -3,7 +3,7 @@ from nptyping import NDArray
 
 from typings import Particles, ParticlesNeighbors
 
-MAX_ALLOWED_NEIGHBORS = 12
+MAX_ALLOWED_NEIGHBORS = 20
 
 
 def detect_particle_collisions(particles: Particles, diameter: float) -> list[ParticlesNeighbors]:

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -15,7 +16,7 @@ BODY_TYPE_TO_CLASS = {"motored": MotoredRigidBody, "fixed": FixedRigidBody, "fre
 class WorldConfig:
     rigid_bodies: list[RigidBody]
     particle_sources: list[ParticleSource]
-    consts: dict
+    coefficients: dict
 
 
 @dataclass
@@ -31,6 +32,7 @@ class Config:
     playback_config: PlaybackConfig
 
 
+@lru_cache
 def load_config() -> Config:
     with open(CONFIG_FILE_PATH, "r") as f:
         raw_config = yaml.safe_load(f)
@@ -38,7 +40,7 @@ def load_config() -> Config:
     world_config = WorldConfig(
         rigid_bodies=build_rigid_bodies(raw_world_config.get("rigid_bodies", [])),
         particle_sources=build_particle_sources(raw_world_config.get("particle_sources")),
-        consts=raw_world_config.get("consts"),
+        coefficients=raw_world_config.get("coefficients"),
     )
     raw_playback_config = raw_config["playback"]
     playback_config = PlaybackConfig(
