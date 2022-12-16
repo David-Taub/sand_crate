@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from particle_source import ParticleSource
-from rigid_body import MotoredRigidBody, FixedRigidBody, RigidBody
+from .particle_source import ParticleSource
+from .rigid_body import MotoredRigidBody, FixedRigidBody, RigidBody
 
 CONFIG_FILE_PATH = Path("../config/config.yaml")
 BODY_TYPE_TO_CLASS = {"motored": MotoredRigidBody, "fixed": FixedRigidBody, "free": RigidBody}

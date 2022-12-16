@@ -2,11 +2,11 @@ import numpy as np
 import yaml
 from nptyping import NDArray
 
-from collision_detector import detect_particle_collisions
-from geometry_utils import points_to_segments_distance, segments_crossings, calc_cross_coefficient, pad_segments
-from load_config import WorldConfig, load_config
-from rigid_body import FixedRigidBody, MotoredRigidBody
-from timer import Timer
+from .collision_detector import detect_particle_collisions
+from .load_config import WorldConfig, load_config
+from .rigid_body import FixedRigidBody, MotoredRigidBody
+from .utils.geometry_utils import points_to_segments_distance, segments_crossings, calc_cross_coefficient, pad_segments
+from .utils.timer import Timer
 
 
 class Crate:

@@ -1,7 +1,7 @@
 import numpy as np
 from nptyping import NDArray
 
-from typings import Particles, ParticlesNeighbors
+from .utils.types import Particles, ParticlesNeighbors
 
 MAX_ALLOWED_NEIGHBORS = 20
 

@@ -1,7 +1,7 @@
 import numpy as np
 from nptyping import NDArray
 
-from typings import Particles
+from .types import Particles
 
 
 def points_to_segments_distance(p: Particles, segments):

@@ -1,3 +1,4 @@
+
 from nptyping import NDArray
 
 Particles = NDArray  # num_of_particles x 2 (X Y)

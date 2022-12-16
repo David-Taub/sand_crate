@@ -8,9 +8,9 @@ import zarr as zarr
 from nptyping import NDArray
 from tqdm import tqdm
 
-from crate import Crate
-from load_config import CONFIG_FILE_PATH
-from typings import Particles
+from crate.crate import Crate
+from crate.load_config import CONFIG_FILE_PATH
+from crate.utils.types import Particles
 
 SCREEN_X = 1000
 SCREEN_Y = 1000
