@@ -20,12 +20,12 @@ class RigidBody:
 
     def segment_velocities(self) -> NDArray:
         # K x 2
-        segment_positions_to_center = np.mean(self.segments, 1) - self.center_velocity[None]
-        segment_distances_to_center = np.hypot(segment_positions_to_center[:, 0], segment_positions_to_center[:, 1])
-        segment_positions_to_velocity_direction = segment_positions_to_center[:, [1, 0]] * np.array([[1, -1]])
+        central_position = np.mean(self.segments, 1) - self.center_velocity[None]
+        central_distance = np.hypot(central_position[:, 0], central_position[:, 1])
+        central_position_perpendicular = central_position[:, [1, 0]] * np.array([[1, -1]])
         return (
-                self.center_velocity
-                + segment_positions_to_velocity_direction * segment_distances_to_center[None] * self.angular_velocity
+                self.center_velocity[None]
+                + central_position_perpendicular * central_distance[:, None] * self.angular_velocity
         )
 
     def place_in_world(self):

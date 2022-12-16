@@ -5,6 +5,7 @@ from nptyping import NDArray
 from .collision_detector import detect_particle_collisions
 from .load_config import WorldConfig, load_config
 from .rigid_body import FixedRigidBody, MotoredRigidBody
+from .utils.force_monitor import ForceMonitor
 from .utils.geometry_utils import points_to_segments_distance, segments_crossings, calc_cross_coefficient, pad_segments
 from .utils.timer import Timer
 
@@ -24,6 +25,7 @@ class Crate:
         self.virtual_colliders_velocity = []
         self.debug_prints = ""
         self.debug_timer = Timer()
+        self.force_monitor = ForceMonitor(self)
 
         self.rigid_bodies = world_config.rigid_bodies
         self.particle_sources = world_config.particle_sources
@@ -39,6 +41,7 @@ class Crate:
         self.collider_noise_level = None
         self.viscosity = None
         self.max_particles = None
+
         for coefficient_name in self.editable_coefficients():
             setattr(self, coefficient_name, world_config.coefficients[coefficient_name])
         self.gravity = np.array(world_config.coefficients["gravity"])
@@ -64,7 +67,7 @@ class Crate:
     @property
     def segment_velocities(self) -> NDArray:
         return np.vstack(
-            [rigid_body.center_velocity] * rigid_body.segments.shape[0] for rigid_body in self.rigid_bodies
+            rigid_body.segment_velocities() for rigid_body in self.rigid_bodies
         )
 
     @property
@@ -88,20 +91,24 @@ class Crate:
             self.compute_collider_pressures()
             # self.add_virtual_collider_pressure_and_overlap()
 
-        with self.debug_timer("Forces grav+pres+visc"):
+        with self.debug_timer("gravity"), self.force_monitor("gravity"):
             self.apply_gravity()
+        with self.debug_timer("pressure"), self.force_monitor("pressure"):
             self.apply_pressure()
-            # self.apply_spring()
+        with self.debug_timer("spring"), self.force_monitor("spring"):
+            self.apply_spring()
+        with self.debug_timer("viscosity"), self.force_monitor("viscosity"):
             self.apply_viscosity()
-        with self.debug_timer("Forces tens+boun+velo"):
+        with self.debug_timer("tension"), self.force_monitor("tension"):
             self.apply_tension()
+        with self.debug_timer("wall_bounce"), self.force_monitor("wall_bounce"):
             self.apply_wall_bounce()
 
-        with self.debug_timer("ContColl + Velocity"):
-            self.apply_particles_velocity()
+        self.apply_particles_velocity()
 
         self.debug_prints = self.debug_timer.report()
-        self.debug_prints += f"\n\n{self.collect_debug_metrics()}"
+        self.debug_prints += f"\n\n{self.force_monitor.report()}"
+        self.debug_prints += f"\n\n{self.get_coefficient_debug()}"
         self.debug_timer.reset()
 
     def create_new_particles(self) -> None:
@@ -313,7 +320,7 @@ class Crate:
         for rigid_body in self.rigid_bodies:
             rigid_body.apply_velocity(self.dt)
 
-    def collect_debug_metrics(self) -> str:
+    def get_coefficient_debug(self) -> str:
         coefficients_list = [(name, getattr(self, name)) for name in self.editable_coefficients()]
         coefficients_list = [{name: val.tolist() if isinstance(val, np.ndarray) else val} for name, val in
                              coefficients_list]
