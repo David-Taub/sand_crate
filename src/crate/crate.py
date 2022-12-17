@@ -100,9 +100,13 @@ class Crate:
             self.apply_viscosity()
         with self.debug_timer("wall_bounce"), self.force_monitor("wall_bounce"):
             self.apply_wall_bounce()
+        with self.debug_timer("continous_velocity"), self.force_monitor("continous_velocity"):
+            self.apply_continuous_collision_velocity_fix()
 
         self.apply_particles_velocity()
+        self.set_debug_prints()
 
+    def set_debug_prints(self) -> None:
         self.debug_prints = self.debug_timer.report()
         self.debug_prints += f"\n\n{self.force_monitor.report()}"
         self.debug_prints += f"\n\n{self.get_coefficient_debug()}"
@@ -144,7 +148,7 @@ class Crate:
             self.colliders.append(relative_colliders / collider_distances[:, None])
             self.collider_velocities.append(self.particle_velocities[collider_indices])
 
-    def calc_continuous_collision_fix_factors(self) -> NDArray:
+    def apply_continuous_collision_velocity_fix(self) -> NDArray:
         particle_fix_factors = np.ones(self.particle_count)
         if self.particle_count == 0:
             return particle_fix_factors
@@ -166,9 +170,7 @@ class Crate:
         for i, particle_index in enumerate(colliding_particle_indices):
             particle_fix_factors[particle_index] = min(particle_fix_factors[particle_index],
                                                        collision_velocity_fix_factor[i]) * 0.90
-        return particle_fix_factors
-        # self.particle_velocities[list(particle_fix_factors.keys())] *= \
-        #     np.array(list(particle_fix_factors.values()))[:, None]
+        self.particle_velocities *= particle_fix_factors[:, None]
 
     def add_wall_virtual_colliders(self) -> None:
         self.virtual_colliders = []
@@ -315,8 +317,7 @@ class Crate:
         # v[i] ← v[i] - Δt * (A[i] + B[i]) * n[i, j]
 
     def apply_particles_velocity(self) -> None:
-        fix_factors = self.calc_continuous_collision_fix_factors()
-        self.particles += self.dt * self.particle_velocities * fix_factors[:, None]
+        self.particles += self.dt * self.particle_velocities
 
     def apply_bodies_velocity(self) -> None:
         for rigid_body in self.rigid_bodies:
