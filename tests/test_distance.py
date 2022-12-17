@@ -66,5 +66,5 @@ def test_collider_random_space():
         if len(particles_neighbors[i]) == 0:
             continue
         colliders = ps[particles_neighbors[i]] - p
-        distances = np.hypot(colliders[:, 0], colliders[:, 1])
+        distances = np.linalg.norm(colliders, axis=1)
         assert all(d <= diameter * 3 for d in distances), f"{distances} exceed {diameter * 3}"

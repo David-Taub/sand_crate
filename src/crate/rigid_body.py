@@ -6,6 +6,7 @@ from nptyping import NDArray
 
 Segment = tuple[float, float]
 
+
 # Position = Union[tuple[float, float], list[float, float], NDArray[float]]
 
 
@@ -21,7 +22,7 @@ class RigidBody:
     def segment_velocities(self) -> NDArray:
         # K x 2
         central_position = np.mean(self.segments, 1) - self.center_velocity[None]
-        central_distance = np.hypot(central_position[:, 0], central_position[:, 1])
+        central_distance = np.linalg.norm(central_position, axis=1)
         central_position_perpendicular = central_position[:, [1, 0]] * np.array([[1, -1]])
         return (
                 self.center_velocity[None]

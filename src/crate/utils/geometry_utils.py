@@ -35,7 +35,7 @@ def points_to_segments_distance(p: Particles, segments):
     # P x S x 2
     d = ab * nx[:, :, None] + a[None]
     pd = d - p[:, None]
-    distance = np.hypot(pd[:, :, 0], pd[:, :, 1])
+    distance = np.linalg.norm(pd, axis=2)
     return d, distance
 
 
@@ -137,7 +137,7 @@ def cross_2d(v1: NDArray, v2: NDArray) -> NDArray:
     return v1[:, 0] * v2[:, 1] - v1[:, 1] * v2[:, 0]
 
 
-def calc_cross_coefficient(a, ab, c, cd):
+def calc_collision_point(a, ab, c, cd):
     # all - N x 2 -> N
     return cross_2d(a - c, cd) / cross_2d(cd, ab)
 
@@ -148,7 +148,7 @@ def pad_segments(segments: NDArray, pad_distance: float) -> NDArray:
     b = segments[:, 1, :]
     ab = b - a
     prep_ab = np.hstack((ab[:, 1, None], -ab[:, 0, None]))
-    offset = prep_ab * pad_distance / np.hypot(prep_ab[:, 0], prep_ab[:, 1])[:, None]
+    offset = prep_ab * pad_distance / np.linalg.norm(prep_ab, axis=1)[:, None]
     padded_segments1 = np.hstack(((a + offset)[:, None], (b + offset)[:, None]))
     padded_segments2 = np.hstack(((a - offset)[:, None], (b - offset)[:, None]))
     return np.vstack((padded_segments1, padded_segments2))

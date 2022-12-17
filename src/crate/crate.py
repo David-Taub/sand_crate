@@ -6,7 +6,7 @@ from .collision_detector import detect_particle_collisions
 from .load_config import WorldConfig, load_config
 from .rigid_body import FixedRigidBody, MotoredRigidBody
 from .utils.force_monitor import ForceMonitor
-from .utils.geometry_utils import points_to_segments_distance, segments_crossings, calc_cross_coefficient, pad_segments
+from .utils.geometry_utils import points_to_segments_distance, segments_crossings, calc_collision_point, pad_segments
 from .utils.timer import Timer
 
 
@@ -16,7 +16,7 @@ class Crate:
         self.particles = np.zeros((0, 2))
         self.particle_velocities = np.zeros((0, 2))
         self.particles_pressure = np.zeros((0, 1))
-        self.real_colliders = []
+        self.colliders = []
         self.colliders_indices = []
         self.collider_overlaps = []
         self.collider_velocities = []
@@ -50,10 +50,7 @@ class Crate:
         return list(load_config().world_config.coefficients.keys())
 
     def colliders_count(self, particle_index: int) -> int:
-        return self.real_colliders[particle_index].shape[0]
-
-    def colliders(self, particle_index: int) -> NDArray:
-        return np.concatenate((self.real_colliders[particle_index], self.virtual_colliders[particle_index]))
+        return self.colliders[particle_index].shape[0]
 
     @property
     def diameter(self) -> float:
@@ -89,8 +86,10 @@ class Crate:
         with self.debug_timer("Pressure"):
             self.compute_particle_pressures()
             self.compute_collider_pressures()
-            # self.add_virtual_collider_pressure_and_overlap()
 
+        with self.debug_timer("tension"), self.force_monitor("tension"):
+            self.apply_tension()
+            self.add_virtual_colliders()
         with self.debug_timer("gravity"), self.force_monitor("gravity"):
             self.apply_gravity()
         with self.debug_timer("pressure"), self.force_monitor("pressure"):
@@ -99,8 +98,6 @@ class Crate:
             self.apply_spring()
         with self.debug_timer("viscosity"), self.force_monitor("viscosity"):
             self.apply_viscosity()
-        with self.debug_timer("tension"), self.force_monitor("tension"):
-            self.apply_tension()
         with self.debug_timer("wall_bounce"), self.force_monitor("wall_bounce"):
             self.apply_wall_bounce()
 
@@ -109,7 +106,6 @@ class Crate:
         self.debug_prints = self.debug_timer.report()
         self.debug_prints += f"\n\n{self.force_monitor.report()}"
         self.debug_prints += f"\n\n{self.get_coefficient_debug()}"
-        self.debug_timer.reset()
 
     def create_new_particles(self) -> None:
         for particle_source in self.particle_sources:
@@ -133,7 +129,7 @@ class Crate:
         )
 
     def populate_colliders(self) -> None:
-        self.real_colliders = []
+        self.colliders = []
         self.collider_distances = []
         self.collider_velocities = []
         for particle_index in range(self.particle_count):
@@ -143,9 +139,9 @@ class Crate:
                     (np.random.rand(len(collider_indices), 2) - 0.5) * self.diameter * self.collider_noise_level
             )
             relative_colliders = self.particles[particle_index] - particle_colliders
-            collider_distances = np.hypot(relative_colliders[:, 0], relative_colliders[:, 1])
+            collider_distances = np.linalg.norm(relative_colliders, axis=1)
             self.collider_distances.append(collider_distances)
-            self.real_colliders.append(relative_colliders / collider_distances[:, None])
+            self.colliders.append(relative_colliders / collider_distances[:, None])
             self.collider_velocities.append(self.particle_velocities[collider_indices])
 
     def calc_continuous_collision_fix_factors(self) -> NDArray:
@@ -153,20 +149,23 @@ class Crate:
         if self.particle_count == 0:
             return particle_fix_factors
         padded_segments = pad_segments(self.segments, self.particle_radius)
+        # padded_segments = self.segments
         particle_movements = np.concatenate(
             (self.particles[:, None], self.particles[:, None] + self.particle_velocities[:, None] * self.dt), 1)
-        particle_segment_collisions = segments_crossings(particle_movements, padded_segments)
-        particle_indices, segments_indices = np.where(particle_segment_collisions)
-        if len(particle_indices) == 0:
+        particle_segment_collisions = segments_crossings(particle_movements, self.segments)
+        colliding_particle_indices, colliding_segment_indices = np.where(particle_segment_collisions)
+        if len(colliding_particle_indices) == 0:
             return particle_fix_factors
-        a = padded_segments[segments_indices, 0, :]
-        b = padded_segments[segments_indices, 1, :]
-        cross_coefficients = calc_cross_coefficient(self.particles[particle_indices],
-                                                    self.particle_velocities[particle_indices] * self.dt,
-                                                    a, b - a)
-        for i, particle_index in enumerate(particle_indices):
+        colliding_segments_point1 = padded_segments[colliding_segment_indices, 0, :]
+        colliding_segments_point2 = padded_segments[colliding_segment_indices, 1, :]
+        collision_velocity_fix_factor = calc_collision_point(self.particles[colliding_particle_indices],
+                                                             self.particle_velocities[
+                                                                 colliding_particle_indices] * self.dt,
+                                                             colliding_segments_point1,
+                                                             colliding_segments_point2 - colliding_segments_point1)
+        for i, particle_index in enumerate(colliding_particle_indices):
             particle_fix_factors[particle_index] = min(particle_fix_factors[particle_index],
-                                                       cross_coefficients[i])
+                                                       collision_velocity_fix_factor[i]) * 0.90
         return particle_fix_factors
         # self.particle_velocities[list(particle_fix_factors.keys())] *= \
         #     np.array(list(particle_fix_factors.values()))[:, None]
@@ -197,22 +196,23 @@ class Crate:
                 self.virtual_colliders.append(virtual_colliders)
                 self.virtual_colliders_velocity.append(self.segment_velocities[touching_segments_mask])
             else:
-                self.virtual_colliders.append(np.array([]))
-                self.virtual_colliders_velocity.append(np.array([]))
+                self.virtual_colliders.append(np.empty((0, 2)))
+                self.virtual_colliders_velocity.append(np.empty((0, 2)))
 
     def apply_wall_bounce(self) -> None:
         for particle_index in range(self.particle_count):
             if len(self.virtual_colliders[particle_index]) == 0:
                 continue
-            wall_ortho = np.mean(self.virtual_colliders[particle_index], 0)
-            wall_velocity = np.mean(self.virtual_colliders_velocity[particle_index], 0)
-            wall_particle_velocity_dot = np.dot(self.particle_velocities[particle_index] - wall_velocity, wall_ortho)
+            segment_normal = np.mean(self.virtual_colliders[particle_index], 0)
+            segment_velocity = np.mean(self.virtual_colliders_velocity[particle_index], 0)
+            segment_normal_normalized = segment_normal / np.linalg.norm(segment_normal)
+            wall_particle_velocity_dot = np.dot(self.particle_velocities[particle_index] - segment_velocity,
+                                                segment_normal_normalized)
             if wall_particle_velocity_dot < 0:
                 # particle moves toward the wall
-                normalized_wall_ortho = wall_ortho / np.dot(wall_ortho, wall_ortho)
-                wall_counter_component = -2 * wall_particle_velocity_dot * normalized_wall_ortho
+                wall_counter_component = -2 * wall_particle_velocity_dot * segment_normal_normalized
                 self.particle_velocities[particle_index] += (
-                        wall_counter_component * (1 - self.wall_collision_decay) + wall_velocity
+                        wall_counter_component * (1 - self.wall_collision_decay) + segment_velocity
                 )
 
     def compute_particle_pressures(self) -> None:
@@ -240,8 +240,10 @@ class Crate:
             particle_collider_pressures = self.particles_pressure[self.colliders_indices[particle_index]]
             self.collider_pressures.append(particle_collider_pressures)
 
-    def add_virtual_collider_pressure_and_overlap(self):
+    def add_virtual_colliders(self):
         for particle_index in range(self.particle_count):
+            self.colliders[particle_index] = np.concatenate(
+                (self.colliders[particle_index], self.virtual_colliders[particle_index]))
             self.collider_overlaps[particle_index] = np.append(self.collider_overlaps[particle_index],
                                                                [0] * len(self.virtual_colliders[particle_index]))
             self.collider_pressures[particle_index] = np.append(self.collider_pressures[particle_index],
@@ -254,7 +256,7 @@ class Crate:
 
             # C x 2
             weighted_colliders = (
-                    self.real_colliders[particle_index]
+                    self.colliders[particle_index]
                     * (self.particles_pressure[particle_index] + self.collider_pressures[particle_index])[:, None]
             )
 
@@ -284,7 +286,7 @@ class Crate:
             # C
             spring_pull = self.spring_overlap_balance - self.collider_overlaps[particle_index]
             self.particle_velocities[particle_index] += np.mean(
-                self.dt * self.spring_amplifier * spring_pull[:, None] * self.real_colliders[particle_index], 0
+                self.dt * self.spring_amplifier * spring_pull[:, None] * self.colliders[particle_index], 0
             )
 
     def apply_tension(self) -> None:
@@ -294,22 +296,22 @@ class Crate:
             if self.colliders_count(i) == 0:
                 continue
             surface_normals[i] = np.sum(
-                ((1 - self.collider_overlaps[i]) * self.collider_overlaps[i])[:, None] * self.real_colliders[i], 0)
+                ((1 - self.collider_overlaps[i]) * self.collider_overlaps[i])[:, None] * self.colliders[i], 0)
         for i in range(self.particle_count):
             if self.colliders_count(i) == 0:
                 continue
             # C x 2
             normal_deltas = surface_normals[i][None] - surface_normals[self.colliders_indices[i]]
             # C
-            normals_alignment = np.sum(normal_deltas * self.real_colliders[i], 1) * self.surface_smoothing
+            normals_alignment = np.sum(normal_deltas * self.colliders[i], 1) * self.surface_smoothing
             # C
             target_pressure_fix = self.collider_pressures[i] + self.particles_pressure[i] - 2 * self.target_pressure
             self.particle_velocities[i] += self.dt * np.sum(
-                (normals_alignment + target_pressure_fix)[:, None] * self.real_colliders[i], 0)
+                (normals_alignment + target_pressure_fix)[:, None] * self.colliders[i], 0)
 
         # s[i] = sum((1 - w[i, j]) * w[i, j] * n[i, j], j)
         # A[i] = a * (w[i] + w[j] - 2 * w0)
-        # B[i] = b * dot(s[j] - s[i], n[i, j]))
+        # B[i] = b * dot(s[j] - s[i], n[i,j]))
         # v[i] ← v[i] - Δt * (A[i] + B[i]) * n[i, j]
 
     def apply_particles_velocity(self) -> None:

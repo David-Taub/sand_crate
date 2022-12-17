@@ -71,12 +71,12 @@ def detect_collisions_for_particles_in_strip(
             diameter,
         )
         # TODO - tradeoff, slower collision detection, for fewer collisions. see if commenting out these lines
-        # is faster
+        #  is faster
         #############################################################
         particle_collisions = np.array(particle_collisions)
         if len(particle_collisions) > 0:
             d = particles[particle_collisions, :] - particles[particle_index_in_strip + strip_start_index, :]
-            distances = np.hypot(d[:, 0], d[:, 1])
+            distances = np.linalg.norm(d, axis=1)
             particle_collisions = particle_collisions[distances <= diameter]
         particle_collisions = particle_collisions.tolist()
         #############################################################
