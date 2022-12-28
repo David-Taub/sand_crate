@@ -47,6 +47,9 @@ class RigidBody:
         new_segments[:, 1, :] += self.calc_body_points_velocities(self.segments[:, 1, :]) * dt
         self.segments = new_segments
 
+    def __len__(self) -> int:
+        return len(self.segments)
+
 
 @dataclass
 class FixedRigidBody(RigidBody):

@@ -24,7 +24,7 @@ class Crate:
         self.particle_velocities: Velocities = np.zeros((0, 2))  # P x 2
         self.particles_pressure = np.zeros((0, 1))  # P x 1
         self.colliders: list[Colliders] = []  # list of Ci x 2
-        self.colliders_indices: list[int] = []  # list of Ci
+        self.colliders_indices: list[list[int]] = []  # list of Ci
         self.collider_overlaps: list[float] = []  # list of Ci
         self.collider_velocities: list[Velocities] = []  # list of Ci x 2
         self.collider_pressures: list[float] = []  # list of Ci
@@ -67,10 +67,19 @@ class Crate:
     def segments(self) -> Segments:
         return np.vstack(rigid_body.segments for rigid_body in self.rigid_bodies)
 
-    def rigid_bodies_points_velocities(self, points: NDArray, segments_mask: NDArray):
-
-    # points - V x 2
-    # segments_mask - S
+    def rigid_bodies_points_velocities(self, points: NDArray, segments_mask: NDArray) -> Velocities:
+        checked_segments = 0
+        calculated_points = 0
+        velocities = np.zeros_like(points)
+        for body in self.rigid_bodies:
+            body_mask = segments_mask[checked_segments: checked_segments + len(body)]
+            points_in_body = np.sum(body_mask)
+            if points_in_body:
+                velocities[calculated_points: calculated_points + points_in_body] = body.calc_body_points_velocities(
+                    points[calculated_points: calculated_points + points_in_body])
+                checked_segments += calculated_points
+            checked_segments += len(body)
+        return velocities
 
     @property
     def particle_count(self) -> int:

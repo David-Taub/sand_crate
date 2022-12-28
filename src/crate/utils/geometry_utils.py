@@ -162,7 +162,7 @@ def pad_segments(segments: Segments, pad_distance: float) -> NDArray:
     # K x 2
     ab: Vectors = b - a
     # K x 2 CW 90 deg
-    ab_normal = rotate_segments_clockwise_90_deg(ab)
+    ab_normal = rotate_vectors_clockwise_90_deg(ab)
     # K x 2
     offset = ab_normal * pad_distance / np.linalg.norm(ab_normal, axis=1)[:, None]
     # K x 2 x 2
@@ -172,16 +172,11 @@ def pad_segments(segments: Segments, pad_distance: float) -> NDArray:
     return np.vstack((padded_segments1, padded_segments2))
 
 
-def rotate_segments_clockwise_90_deg(segments: Segments) -> Segments:
-    # segments - K x 2 x 2
-    # (x, y)->(y, -x)
-    return np.hstack((segments[:, 1, None], -segments[:, 0, None]))
-
 
 def rotate_vectors_clockwise_90_deg(vectors: Vectors) -> Vectors:
     # (x, y)->(y, -x)
     # points - N x 2
-    return np.hstack((vectors[:, 1], -vectors[:, 0]))
+    return np.hstack((vectors[:, 1, None], -vectors[:, 0, None]))
 
 
 def segments_crossings(segments1: Segments, segments2: Segments) -> NDArray:
@@ -207,7 +202,7 @@ def segments_crossings(segments1: Segments, segments2: Segments) -> NDArray:
     c = segments2[:, 0, :]
     d = segments2[:, 1, :]
     # N x K x 2 -> N x K
-    opposite_direction_map = np.sum(rotate_segments_clockwise_90_deg(d - c)[None] * (b - a)[:, None], axis=2) < 0
+    opposite_direction_map = np.sum(rotate_vectors_clockwise_90_deg(d - c)[None] * (b - a)[:, None], axis=2) < 0
     # N x K
     crossing_map = np.logical_and(orientation(a, b, c) != orientation(a, b, d),
                                   (orientation(c, d, a) != orientation(c, d, b)).T)
