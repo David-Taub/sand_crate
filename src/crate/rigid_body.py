@@ -4,6 +4,8 @@ from typing import Callable
 import numpy as np
 from nptyping import NDArray
 
+from src.crate.utils.geometry_utils import rotate_vectors_clockwise_90_deg
+
 Segment = tuple[float, float]
 
 
@@ -15,19 +17,21 @@ class RigidBody:
     segments: NDArray  # segments x dots(2) x dims(2)
     name: str = ""
     center_velocity: NDArray = np.array([0.0, 0.0])
-    angular_velocity: float = 0.00
+    angular_clockwise_velocity: float = 0.00  # assumed small. if not, we should use the sine on this value*
     scale: list[float] = field(default_factory=lambda: [1.0, 1.0])
     position: list[float] = field(default_factory=lambda: [0.0, 0.0])
 
-    def segment_velocities(self) -> NDArray:
-        # K x 2
-        central_position = np.mean(self.segments, 1) - self.center_velocity[None]
-        central_distance = np.linalg.norm(central_position, axis=1)
-        central_position_perpendicular = central_position[:, [1, 0]] * np.array([[1, -1]])
-        return (
-                self.center_velocity[None]
-                + central_position_perpendicular * central_distance[:, None] * self.angular_velocity
-        )
+    @property
+    def central_position(self):
+        return np.mean(self.segments, 1)
+
+    def calc_body_points_velocities(self, body_points: NDArray) -> NDArray:
+        # N x 2
+        points_central_position = body_points - self.central_position
+        # N x 2
+        points_tangential_direction = rotate_vectors_clockwise_90_deg(points_central_position)
+        # N x 2
+        return self.center_velocity[None] + points_tangential_direction * self.angular_clockwise_velocity
 
     def place_in_world(self):
         self.segments *= np.array(self.scale)[None]
@@ -38,23 +42,9 @@ class RigidBody:
         return np.mean(self.segments, (0, 1))
 
     def apply_velocity(self, dt: float) -> None:
-        self.segments += dt * self.center_velocity[None, None]
-        self.rotate_object_around_center(dt * self.angular_velocity)
-
-    def rotate_object_around_center(self, theta) -> None:
-        center = self.center
-        new_segments = np.zeros_like(self.segments)
-        new_segments[:, :, 0] = (
-                np.cos(theta) * (self.segments[:, :, 0] - center[None, 0])
-                - np.sin(theta) * (self.segments[:, :, 1] - center[None, 1])
-                + center[None, 0]
-        )
-
-        new_segments[:, :, 1] = (
-                np.sin(theta) * (self.segments[:, :, 0] - center[None, 0])
-                + np.cos(theta) * (self.segments[:, :, 1] - center[None, 1])
-                + center[None, 1]
-        )
+        new_segments = self.segments.copy()
+        new_segments[:, 0, :] += self.calc_body_points_velocities(self.segments[:, 0, :]) * dt
+        new_segments[:, 1, :] += self.calc_body_points_velocities(self.segments[:, 1, :]) * dt
         self.segments = new_segments
 
 

@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -32,7 +31,6 @@ class Config:
     playback_config: PlaybackConfig
 
 
-@lru_cache
 def load_config() -> Config:
     with open(CONFIG_FILE_PATH, "r") as f:
         raw_config = yaml.safe_load(f)

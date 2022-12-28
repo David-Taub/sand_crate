@@ -1,4 +1,5 @@
 import shutil
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -9,7 +10,7 @@ from nptyping import NDArray
 from tqdm import tqdm
 
 from crate.crate import Crate
-from crate.load_config import CONFIG_FILE_PATH
+from crate.load_config import CONFIG_FILE_PATH, load_config
 from crate.utils.types import Particles
 
 SCREEN_X = 1000
@@ -23,6 +24,8 @@ class Playback:
     def __init__(self, crate: Crate) -> None:
         self.crate = crate
         self.done = False
+        self.pause = False
+        self.step_one = False
         self.screen: Optional[pygame.Surface] = None
         self.font: Optional[pygame.Font] = None
         self.current_physical_field_index: int = 0
@@ -37,6 +40,12 @@ class Playback:
     def run_live_simulation(self) -> None:
         self.init_display()
         while not self.done:
+            while self.pause:
+                self.handle_input()
+                time.sleep(0.01)
+                if self.step_one:
+                    self.step_one = False
+                    break
             self.handle_input()
             self.crate.physics_tick()
 
@@ -90,11 +99,20 @@ class Playback:
                     self.edit_physics(increase=False)
                 if event.key == pygame.K_d:
                     self.edit_physics(increase=True)
+                if event.key == pygame.K_r:
+                    self.reset()
+                if event.key == pygame.K_SPACE:
+                    self.pause = not self.pause
+                if event.key == pygame.K_n:
+                    self.step_one = True
             if event.type == pygame.KEYUP:
                 self.crate.gravity = np.array([0.0, 9.81])
 
+    def reset(self):
+        self.crate = Crate(load_config().world_config)
+
     def display_segments(self, segments) -> None:
-        for segment in segments:
+        for i, segment in enumerate(segments):
             pygame.draw.line(
                 self.screen,
                 LINE_COLOR,
@@ -102,6 +120,7 @@ class Playback:
                 self.crate_to_screen_coord(*segment[1]),
                 width=2,
             )
+            self.screen.blit(self.font.render(str(i), True, (0, 255, 0)), self.crate_to_screen_coord(*segment[0]))
 
     def display_particles(
             self, particles: Particles, particle_radius: float, particles_color: Optional[NDArray] = None
@@ -115,6 +134,8 @@ class Playback:
                 particle_color = (100, 100, 255)
             particle_color = np.clip(particle_color, 0, 255)
             pygame.draw.circle(self.screen, particle_color, particle_center, particle_radius)
+            self.screen.blit(self.font.render(str(i), True, (255, 0, 0)),
+                             (particle_center[0] - 5, particle_center[1] - 8))
 
     @staticmethod
     def crate_to_screen_coord(x: float, y: float) -> tuple[int, int]:
