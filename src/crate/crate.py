@@ -19,7 +19,7 @@ class Crate:
     # TODO: make colliders into a 3d array, with zeros
     def __init__(self, world_config: WorldConfig) -> None:
         np.random.seed(0)
-        self.tick = 0
+        self.tick: int = 0
         self.particles: Particles = np.zeros((0, 2))  # P x 2
         self.particle_velocities: Velocities = np.zeros((0, 2))  # P x 2
         self.particles_pressure = np.zeros((0, 1))  # P x 1
@@ -30,7 +30,8 @@ class Crate:
         self.collider_pressures: list[float] = []  # list of Ci
         self.virtual_colliders: list[Colliders] = []  # list of Vi x 2
         self.virtual_colliders_velocity: list[Velocities] = []  # list of Vi x 2
-        self.debug_prints = ""
+        self.debug_arrows = []
+        self.debug_prints: str = ""
         self.debug_timer = Timer()
         self.force_monitor = ForceMonitor(self)
 
@@ -126,6 +127,7 @@ class Crate:
         self.set_debug_prints()
 
     def set_debug_prints(self) -> None:
+        self.debug_arrows = []
         self.debug_prints = f"Tick: {self.tick}\n"
         self.debug_prints += self.debug_timer.report()
         self.debug_prints += f"\n\n{self.force_monitor.report()}"

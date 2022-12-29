@@ -13,7 +13,7 @@ def main():
     recording_dir = config.playback_config.recording_output_dir_path / f"{timestamp}"
     gui.run_live_simulation(config.playback_config.ticks_to_record, recording_dir,
                             config.playback_config.save_recording)
-    gui.show_recording(recording_dir)
+    # gui.show_recording(recording_dir)
 
 
 if __name__ == "__main__":

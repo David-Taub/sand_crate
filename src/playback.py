@@ -18,7 +18,7 @@ SCREEN_Y = 1000
 TEXT_MARGIN = 6
 BACKGROUND_COLOR = pygame.Color(0, 0, 0)
 RIGID_BODY_COLOR = pygame.Color(255, 255, 255)
-FORCES_COLOR = pygame.Color(0, 255, 0)
+DEBUG_ARROWS_COLOR = pygame.Color(0, 255, 0)
 SEGMENT_INDEX_COLOR = pygame.Color(0, 255, 0)
 PARTICLE_INDEX_COLOR = pygame.Color(255, 0, 0)
 PLAYBACK_PARTICLE_COLOR = pygame.Color(100, 100, 255)
@@ -35,23 +35,6 @@ class Playback:
         self.font: Optional[pygame.Font] = None
         self.current_physical_field_index: int = 0
 
-    def init_display(self):
-        pygame.init()
-        pygame.font.init()
-        pygame.display.set_caption("SandCrate")
-        self.screen = pygame.display.set_mode((SCREEN_X, SCREEN_Y))
-        self.font = pygame.font.SysFont("monospace", SCREEN_X // 60)
-
-    def show_particle_forces(self, particle_index: int) -> None:
-        particle_position = self.crate.particles[particle_index]
-        particle_velocity = self.crate.particle_velocities[particle_index]
-        draw_arrow(
-            self.screen,
-            color=FORCES_COLOR,
-            start=self.crate_to_screen_coord(*particle_position),
-            end=self.crate_to_screen_coord(*(particle_position + particle_velocity))
-        )
-
     def run_live_simulation(self, num_of_ticks: int, recording_output_dir_path: Path, save_recording: bool) -> None:
         self.init_display()
         if save_recording:
@@ -61,21 +44,33 @@ class Playback:
         while not self.done:
             self.handle_play_control()
             self.handle_input()
-
             self.crate.physics_tick()
             if recording_frame_index < num_of_ticks and save_recording:
                 particles_recording[recording_frame_index, : self.crate.particle_count] = self.crate.particles
                 segments_recording[recording_frame_index] = self.crate.segments
-            self.screen.fill(BACKGROUND_COLOR)
-            self.display_particles(self.crate.particles, self.crate.particle_radius, self.crate.particles_pressure,
-                                   show_indices=True)
-            self.display_segments(self.crate.segments)
-            self.display_debug_text(self.crate.debug_prints)
-            pygame.display.update()
+            self.draw_scene()
+
         if save_recording:
             self.save_recording(particles_recording, segments_recording, recording_output_dir_path)
             shutil.copy(CONFIG_FILE_PATH, recording_output_dir_path)
+            self.play_recording(recording_output_dir_path)
         pygame.quit()
+
+    def init_display(self):
+        pygame.init()
+        pygame.font.init()
+        pygame.display.set_caption("SandCrate")
+        self.screen = pygame.display.set_mode((SCREEN_X, SCREEN_Y))
+        self.font = pygame.font.SysFont("monospace", SCREEN_X // 60)
+
+    def draw_scene(self):
+        self.screen.fill(BACKGROUND_COLOR)
+        self.draw_particles(self.crate.particles, self.crate.particle_radius, self.crate.particles_pressure,
+                            show_indices=True)
+        self.draw_segments(self.crate.segments)
+        self.draw_debug_arrows()
+        self.draw_debug_text(self.crate.debug_prints)
+        pygame.display.update()
 
     def handle_play_control(self) -> None:
         while self.pause and not self.done:
@@ -85,13 +80,24 @@ class Playback:
                 self.step_one = False
                 return
 
+    def draw_debug_arrows(self):
+        for start, end in self.crate.debug_arrows:
+            draw_arrow(
+                self.screen,
+                color=DEBUG_ARROWS_COLOR,
+                start=self.crate_to_screen_coord(*start),
+                end=self.crate_to_screen_coord(*end),
+                head_width=6,
+                head_height=6
+            )
+
     def save_recording(self, particles_recording: NDArray, segments_recording: NDArray,
                        recording_output_dir_path: Path) -> None:
         zarr.save(str(Path(recording_output_dir_path) / "particles"), particles_recording)
         zarr.save(str(Path(recording_output_dir_path) / "segments"), segments_recording)
         shutil.copy(CONFIG_FILE_PATH, recording_output_dir_path)
 
-    def show_recording(self, recording_dir_path: Path) -> None:
+    def play_recording(self, recording_dir_path: Path) -> None:
         particles_recording = zarr.load(str(recording_dir_path / "particles"))
         segments_recording = zarr.load(str(recording_dir_path / "segments"))
         self.init_display()
@@ -99,8 +105,8 @@ class Playback:
             for particles, segments in zip(particles_recording, segments_recording):
                 self.screen.fill(BACKGROUND_COLOR)
                 self.handle_input()
-                self.display_particles(particles, self.crate.particle_radius)
-                self.display_segments(segments)
+                self.draw_particles(particles, self.crate.particle_radius)
+                self.draw_segments(segments)
                 pygame.display.update()
                 if self.done:
                     break
@@ -135,7 +141,7 @@ class Playback:
     def reset(self):
         self.crate = Crate(load_config().world_config)
 
-    def display_segments(self, segments: Segments, show_indices: bool = False) -> None:
+    def draw_segments(self, segments: Segments, show_indices: bool = False) -> None:
         for i, segment in enumerate(segments):
             pygame.draw.line(
                 self.screen,
@@ -148,7 +154,7 @@ class Playback:
                 self.screen.blit(self.font.render(str(i), True, SEGMENT_INDEX_COLOR),
                                  self.crate_to_screen_coord(*segment[0]))
 
-    def display_particles(
+    def draw_particles(
             self, particles: Particles, particle_radius: float, particles_color: Optional[NDArray] = None,
             show_indices: bool = False
     ) -> None:
@@ -169,7 +175,7 @@ class Playback:
     def crate_to_screen_coord(x: float, y: float) -> pygame.Vector2:
         return pygame.Vector2(int(x * (SCREEN_X - 1)), int(y * (SCREEN_Y - 1)))
 
-    def display_debug_text(self, text: str) -> None:
+    def draw_debug_text(self, text: str) -> None:
         for line, line_text in enumerate(text.split("\n")):
             text_surface = self.font.render(line_text, True, DEBUG_TEXT_COLOR)
 

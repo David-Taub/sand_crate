@@ -1,6 +1,9 @@
 import pygame
 
 
+def show_particle_forces(start, end) -> None:
+
+
 def draw_arrow(
         surface: pygame.Surface,
         start: pygame.Vector2,
