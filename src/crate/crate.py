@@ -106,7 +106,7 @@ class Crate:
 
         with self.debug_timer("tension"), self.force_monitor("tension"):
             self.apply_tension()
-            # self.calc_virtual_colliders_properties()
+            self.calc_virtual_colliders_properties()
         with self.debug_timer("gravity"), self.force_monitor("gravity"):
             self.apply_gravity()
         with self.debug_timer("pressure"), self.force_monitor("pressure"):
@@ -117,7 +117,7 @@ class Crate:
             self.apply_viscosity()
         with self.debug_timer("wall_bounce"), self.force_monitor("wall_bounce"):
             self.apply_wall_bounce()
-        with self.debug_timer("continuous_velocity"), self.force_monitor("continuous_velocity"):
+        with self.debug_timer("continuous_collision"), self.force_monitor("continuous_collision"):
             self.apply_continuous_collision_velocity_fix()
         self.apply_particles_velocity()
 
@@ -224,7 +224,7 @@ class Crate:
                   +
             """
             # S
-            touching_segments_mask: NDArray = distances[particle_index] <= self.particle_radius
+            touching_segments_mask: NDArray = distances[particle_index] <= self.particle_radius * 1.2
             particle_segment_contacts = nearest_point_in_segment[particle_index, touching_segments_mask]
             # V x 2
             virtual_colliders_count = particle_segment_contacts.shape[0]
@@ -245,14 +245,15 @@ class Crate:
             if len(self.virtual_colliders[particle_index]) == 0:
                 continue
             segment_normal = np.mean(self.virtual_colliders[particle_index], 0)
-            segment_velocity = np.mean(self.virtual_colliders_velocity[particle_index], 0)
+            contact_point_velocity = np.mean(self.virtual_colliders_velocity[particle_index], 0)
             segment_normal_normalized = segment_normal / np.linalg.norm(segment_normal)
-            particle_segment_relative_velocity = self.particle_velocities[particle_index] - segment_velocity
+            particle_segment_relative_velocity = self.particle_velocities[particle_index] - contact_point_velocity
             segment_particle_velocity_dot = np.dot(particle_segment_relative_velocity, segment_normal_normalized)
             if segment_particle_velocity_dot < 0:
                 # particle moves toward the wall
                 wall_counter_component = -1 * segment_particle_velocity_dot * segment_normal_normalized
-                self.particle_velocities[particle_index] += 2 * wall_counter_component * self.wall_collision_decay
+                self.particle_velocities[particle_index] += wall_counter_component
+                self.particle_velocities[particle_index] += wall_counter_component * self.wall_collision_decay
 
     def compute_particle_pressures(self) -> None:
         particles_pressure = []

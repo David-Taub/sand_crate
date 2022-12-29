@@ -1,28 +1,28 @@
 playback:
-  live_simulation: true
-  ticks_to_record: 10000
+  save_recording: False
+  ticks_to_record: 5000
   recording_output_dir_path: "../data/recordings"
 world:
   coefficients:
-    dt: 0.003
-    particle_radius: 0.009
-    wall_collision_decay: 0.5
+    dt: 0.002
+    particle_radius: 0.005
+    wall_collision_decay: 0.6
     spring_overlap_balance: 0.5
     spring_amplifier: 100
     pressure_amplifier: 30
-    ignored_pressure: 0.5
-    collider_noise_level: 0.1
-    viscosity: 7
-    max_particles: 10
-    surface_smoothing: 80
-    target_pressure: -2
+    ignored_pressure: 0.3
+    collider_noise_level: 0.2
+    viscosity: 8
+    max_particles: 20
+    surface_smoothing: 100
+    target_pressure: 2
     gravity: [ 0, 9.8 ]
 
   particle_sources:
-    - radius: 0.03
+    - radius: 0.04
       position: [ 0.9, 0.1 ]
       velocity: [ -2.5, 1.0 ]
-      flow: 100
+      flow: 200
       noise: 0
 
   rigid_bodies:

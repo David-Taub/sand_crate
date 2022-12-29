@@ -5,6 +5,7 @@ import numpy as np
 from nptyping import NDArray
 
 from src.crate.utils.geometry_utils import rotate_vectors_clockwise_90_deg
+from src.crate.utils.types import Points, Velocities
 
 Segment = tuple[float, float]
 
@@ -22,10 +23,10 @@ class RigidBody:
     position: list[float] = field(default_factory=lambda: [0.0, 0.0])
 
     @property
-    def central_position(self):
-        return np.mean(self.segments, 1)
+    def central_position(self) -> Points:
+        return np.mean(np.mean(self.segments, 0), 0)[None]
 
-    def calc_body_points_velocities(self, body_points: NDArray) -> NDArray:
+    def calc_body_points_velocities(self, body_points: Points) -> Velocities:
         # N x 2
         points_central_position = body_points - self.central_position
         # N x 2
@@ -65,6 +66,6 @@ class MotoredRigidBody(RigidBody):
 
     def apply_velocity(self, dt: float) -> None:
         self.time_from_start += dt
-        self.velocity = self.velocity_func(self.time_from_start)  # noqa
-        self.angular_velocity = self.angular_velocity_func(self.time_from_start)  # noqa
+        self.center_velocity = self.velocity_func(self.time_from_start)  # noqa
+        self.angular_clockwise_velocity = self.angular_velocity_func(self.time_from_start)  # noqa
         super(MotoredRigidBody, self).apply_velocity(dt)
