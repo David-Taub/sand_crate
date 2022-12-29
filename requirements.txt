@@ -2,6 +2,6 @@ numpy==1.23.5
 nptyping==2.4.1
 pygame==2.1.2
 pytest~=7.2.0
-yaml
+PyYAML
 zarr
 tqdm

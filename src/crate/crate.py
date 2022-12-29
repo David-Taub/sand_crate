@@ -89,7 +89,7 @@ class Crate:
     def physics_tick(self) -> None:
         self.create_new_particles()
         self.remove_particles()
-
+        self.debug_arrows = []
         self.apply_bodies_velocity()
 
         with self.debug_timer("Virtual Colliders"):
@@ -127,7 +127,6 @@ class Crate:
         self.set_debug_prints()
 
     def set_debug_prints(self) -> None:
-        self.debug_arrows = []
         self.debug_prints = f"Tick: {self.tick}\n"
         self.debug_prints += self.debug_timer.report()
         self.debug_prints += f"\n\n{self.force_monitor.report()}"
@@ -196,19 +195,14 @@ class Crate:
         self.particle_velocities *= particle_fix_factors[:, None]
 
     def apply_hard_wall_fix(self) -> None:
-        # dist = 2k
-        # v (r/2k-1/2)
-        # 2k -> (r-k)
-        # v (r-k)/2k
-        # (v / 2) * (diam - dist)/ 2
-        # 0.90
-
         for i in range(self.particle_count):
             if self.virtual_colliders[i].shape[0] == 0:
                 continue
             corrections = self.virtual_colliders[i] * (
                     self.particle_radius / (np.linalg.norm(self.virtual_colliders[i], axis=1)) - 0.5)
-            self.particles[i] += np.sum(corrections, axis=0)
+            correction = np.sum(corrections, axis=0)
+            self.debug_arrows.append((self.particles[i], correction))
+            self.particles[i] += correction
 
     def calc_virtual_colliders(self) -> None:
         self.virtual_colliders = []
@@ -254,6 +248,7 @@ class Crate:
             if segment_particle_velocity_dot < 0:
                 # particle moves toward the wall
                 wall_counter_component = -1 * segment_particle_velocity_dot * segment_normal_normalized
+                # self.debug_arrows.append((self.particles[particle_index], wall_counter_component))
                 self.particle_velocities[particle_index] += wall_counter_component
                 self.particle_velocities[particle_index] += wall_counter_component * self.wall_collision_decay
 

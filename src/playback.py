@@ -13,6 +13,7 @@ from crate.load_config import CONFIG_FILE_PATH, load_config
 from crate.utils.types import Particles, Segments
 from src.crate.utils.pygame_utils import draw_arrow
 
+SCROLL_ZOOM_FACTOR = 0.5
 SCREEN_X = 1000
 SCREEN_Y = 1000
 TEXT_MARGIN = 6
@@ -23,6 +24,7 @@ SEGMENT_INDEX_COLOR = pygame.Color(0, 255, 0)
 PARTICLE_INDEX_COLOR = pygame.Color(255, 0, 0)
 PLAYBACK_PARTICLE_COLOR = pygame.Color(100, 100, 255)
 DEBUG_TEXT_COLOR = pygame.Color(255, 255, 255)
+ORIGINAL_SCREEN_CENTER = pygame.Vector2(SCREEN_X, SCREEN_Y) / 2
 
 
 class Playback:
@@ -34,6 +36,8 @@ class Playback:
         self.screen: Optional[pygame.Surface] = None
         self.font: Optional[pygame.Font] = None
         self.current_physical_field_index: int = 0
+        self.zoom_center = ORIGINAL_SCREEN_CENTER.copy()
+        self.zoom_factor = 1.0
 
     def run_live_simulation(self, num_of_ticks: int, recording_output_dir_path: Path, save_recording: bool) -> None:
         self.init_display()
@@ -81,14 +85,17 @@ class Playback:
                 return
 
     def draw_debug_arrows(self):
-        for start, end in self.crate.debug_arrows:
+        for start, direction in self.crate.debug_arrows:
+            if np.isnan(start).any() or np.isnan(direction).any():
+                continue
+            direction = direction / np.power(np.linalg.norm(direction) + 0.001, 0.3)
             draw_arrow(
                 self.screen,
                 color=DEBUG_ARROWS_COLOR,
                 start=self.crate_to_screen_coord(*start),
-                end=self.crate_to_screen_coord(*end),
-                head_width=6,
-                head_height=6
+                end=self.crate_to_screen_coord(*(start + direction)),
+                head_width=4,
+                head_height=2
             )
 
     def save_recording(self, particles_recording: NDArray, segments_recording: NDArray,
@@ -114,6 +121,12 @@ class Playback:
 
     def handle_input(self) -> None:
         for event in pygame.event.get():
+            if event.type == pygame.MOUSEWHEEL:
+                self.scale_zoom(event.y)
+                self.draw_scene()
+            if event.type == pygame.MOUSEMOTION:
+                if event.buttons[0]:
+                    self.translate(pygame.Vector2(*event.rel))
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RIGHT:
                     self.crate.gravity = np.array([9.81, 0.0])
@@ -131,6 +144,8 @@ class Playback:
                     self.edit_physics(increase=True)
                 if event.key == pygame.K_r:
                     self.reset()
+                    self.zoom_center = ORIGINAL_SCREEN_CENTER
+                    self.zoom_factor = 1.0
                 if event.key == pygame.K_SPACE:
                     self.pause = not self.pause
                 if event.key == pygame.K_n:
@@ -158,7 +173,7 @@ class Playback:
             self, particles: Particles, particle_radius: float, particles_color: Optional[NDArray] = None,
             show_indices: bool = False
     ) -> None:
-        particle_radius = int(SCREEN_X * particle_radius)
+        particle_radius = int(SCREEN_X * particle_radius) * self.zoom_factor
         for i in range(particles.shape[0]):
             particle_center = self.crate_to_screen_coord(particles[i, 0], particles[i, 1])
             if particles_color is not None:
@@ -171,9 +186,10 @@ class Playback:
                 self.screen.blit(self.font.render(str(i), True, PARTICLE_INDEX_COLOR),
                                  (particle_center[0] - 5, particle_center[1] - 8))
 
-    @staticmethod
-    def crate_to_screen_coord(x: float, y: float) -> pygame.Vector2:
-        return pygame.Vector2(int(x * (SCREEN_X - 1)), int(y * (SCREEN_Y - 1)))
+    def crate_to_screen_coord(self, x: float, y: float) -> pygame.Vector2:
+        screen_coordination = pygame.Vector2(int(x * (SCREEN_X - 1)), int(y * (SCREEN_Y - 1)))
+        screen_coordination = ((screen_coordination - self.zoom_center) * self.zoom_factor) + ORIGINAL_SCREEN_CENTER
+        return screen_coordination
 
     def draw_debug_text(self, text: str) -> None:
         for line, line_text in enumerate(text.split("\n")):
@@ -187,3 +203,18 @@ class Playback:
         current_value = getattr(self.crate, coefficient)
         change_rate = 1 + change_factor if increase else 1 - change_factor
         setattr(self.crate, coefficient, current_value * change_rate)
+
+    def translate(self, relative_motion: pygame.Vector2) -> None:
+        self.zoom_center -= relative_motion / self.zoom_factor
+
+    def scale_zoom(self, scale_direction: int) -> None:
+        """
+        makes the point under the mouse stay at the same place after zoom
+        """
+        mouse_pos = pygame.Vector2(*pygame.mouse.get_pos())
+        new_zoom_factor = self.zoom_factor * 1 + scale_direction * SCROLL_ZOOM_FACTOR
+        zooms_ratio = new_zoom_factor / self.zoom_factor
+        zoom_center_target = (1 - 1 / zooms_ratio) * mouse_pos + (1 / zooms_ratio) * ORIGINAL_SCREEN_CENTER
+
+        self.zoom_factor = new_zoom_factor
+        self.zoom_center = (self.zoom_center + (zoom_center_target - ORIGINAL_SCREEN_CENTER) / self.zoom_factor)
