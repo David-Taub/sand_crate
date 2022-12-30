@@ -5,8 +5,8 @@ import numpy as np
 import pygame
 from nptyping import NDArray
 
-from src.crate.utils.geometry_utils import rotate_vectors_clockwise_90_deg
-from src.crate.utils.types import Points, Velocities
+from .utils.geometry_utils import rotate_vectors_clockwise_90_deg
+from .utils.types import Points, Velocities
 
 Segment = tuple[float, float]
 

@@ -3,7 +3,7 @@ import yaml
 from nptyping import NDArray
 
 from .collision_detector import detect_particle_collisions
-from .load_config import WorldConfig, load_config
+from .load_config import WorldConfig
 from .rigid_body import FixedRigidBody, MotoredRigidBody
 from .utils.force_monitor import ForceMonitor
 from .utils.geometry_utils import points_to_segments_distance, segments_crossings, calc_collision_point, pad_segments
@@ -25,9 +25,9 @@ class Crate:
         self.particles_pressure = np.zeros((0, 1))  # P x 1
         self.colliders: list[Colliders] = []  # list of Ci x 2
         self.colliders_indices: list[list[int]] = []  # list of Ci
-        self.collider_overlaps: list[float] = []  # list of Ci
+        self.collider_overlaps: list[NDArray] = []  # list of Ci
         self.collider_velocities: list[Velocities] = []  # list of Ci x 2
-        self.collider_pressures: list[float] = []  # list of Ci
+        self.collider_pressures: list[NDArray] = []  # list of Ci
         self.virtual_colliders: list[Colliders] = []  # list of Vi x 2
         self.virtual_colliders_velocity: list[Velocities] = []  # list of Vi x 2
         self.debug_arrows = []
@@ -35,6 +35,7 @@ class Crate:
         self.debug_timer = Timer()
         self.force_monitor = ForceMonitor(self)
 
+        self.world_config = world_config
         self.rigid_bodies = world_config.rigid_bodies
         self.particle_sources = world_config.particle_sources
         self.particle_radius = None
@@ -55,7 +56,7 @@ class Crate:
         self.gravity = np.array(world_config.coefficients["gravity"])
 
     def editable_coefficients(self) -> list[str]:
-        return list(load_config().world_config.coefficients.keys())
+        return list(self.world_config.coefficients.keys())
 
     def colliders_count(self, particle_index: int) -> int:
         return self.colliders[particle_index].shape[0]

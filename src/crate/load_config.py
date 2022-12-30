@@ -7,7 +7,6 @@ import yaml
 from .particle_source import ParticleSource
 from .rigid_body import MotoredRigidBody, FixedRigidBody, RigidBody
 
-CONFIG_FILE_PATH = Path("../config/config.yaml")
 BODY_TYPE_TO_CLASS = {"motored": MotoredRigidBody, "fixed": FixedRigidBody, "free": RigidBody}
 
 
@@ -23,6 +22,8 @@ class PlaybackConfig:
     save_recording: bool
     ticks_to_record: bool
     recording_output_dir_path: Path
+    screen_x: int
+    screen_y: int
 
 
 @dataclass
@@ -31,8 +32,8 @@ class Config:
     playback_config: PlaybackConfig
 
 
-def load_config() -> Config:
-    with open(CONFIG_FILE_PATH, "r") as f:
+def load_config(config_file_path: Path) -> Config:
+    with open(config_file_path, "r") as f:
         raw_config = yaml.safe_load(f)
     raw_world_config = raw_config["world"]
     world_config = WorldConfig(
@@ -40,11 +41,13 @@ def load_config() -> Config:
         particle_sources=build_particle_sources(raw_world_config.get("particle_sources")),
         coefficients=raw_world_config.get("coefficients"),
     )
-    raw_playback_config = raw_config["playback"]
+    playback_config = raw_config["playback"]
     playback_config = PlaybackConfig(
-        save_recording=raw_playback_config["save_recording"],
-        ticks_to_record=raw_playback_config["ticks_to_record"],
-        recording_output_dir_path=Path(raw_playback_config["recording_output_dir_path"]),
+        save_recording=playback_config["save_recording"],
+        ticks_to_record=playback_config["ticks_to_record"],
+        recording_output_dir_path=Path(playback_config["recording_output_dir_path"]),
+        screen_x=playback_config["screen_x"],
+        screen_y=playback_config["screen_y"]
     )
     return Config(world_config=world_config, playback_config=playback_config)
 

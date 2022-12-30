@@ -1,20 +1,18 @@
-from datetime import datetime
+from pathlib import Path
+from typing import Optional
 
-from crate.crate import Crate
-from crate.load_config import load_config
+import fire
+
 from playback import Playback
 
 
-def main():
-    config = load_config()
-    crate = Crate(config.world_config)
-    gui = Playback(crate)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    recording_dir = config.playback_config.recording_output_dir_path / f"{timestamp}"
-    gui.run_live_simulation(config.playback_config.ticks_to_record, recording_dir,
-                            config.playback_config.save_recording)
-    # gui.show_recording(recording_dir)
+def main(config_file_path: Path, play_recording: Optional[Path] = None):
+    playback = Playback(config_file_path=config_file_path, recording_dir_path=play_recording)
+    if play_recording is not None:
+        playback.play_recording()
+    else:
+        playback.run_live_simulation()
 
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)

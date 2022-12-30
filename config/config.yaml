@@ -2,6 +2,9 @@ playback:
   save_recording: True
   ticks_to_record: 5000
   recording_output_dir_path: "../data/recordings"
+  screen_x: 1000
+  screen_y: 1000
+
 world:
   coefficients:
     dt: 0.002
@@ -44,12 +47,3 @@ world:
         angular_velocity_func: "lambda t: np.cos(t * 5) * 1.4"
         scale: [ 0.5, 0.2 ]
         position: [ 0.5, 0.6 ]
-#    - fixed:
-#        name: buttom_cup
-#        segments: [
-#          [ [ 0.0, 0.0 ], [ 0.0, 1.0 ] ],
-#          [ [ 1.0, 0.0 ], [ 1.0, 1.0 ] ],
-#          [ [ 0.0, 1.0 ], [ 1.0, 1.0 ] ],
-#        ]
-#        scale: [ 0.8, 0.05 ]
-#        position: [ 0.1, 0.9 ]

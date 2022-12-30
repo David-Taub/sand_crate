@@ -43,10 +43,9 @@ def detect_particle_collisions(particles: Particles, diameter: float) -> list[Pa
         )
     add_reverse_collisions(collisions)
     trim_collisions(collisions, MAX_ALLOWED_NEIGHBORS)
-    collisions = np.array(collisions)
-    reversed_indices_collisions = [
-        [indices[i] for i in particle_collisions] for particle_collisions in collisions[np.argsort(indices)]
-    ]
+    collisions_rearranged = [collisions[i] for i in np.argsort(indices)]
+    reversed_indices_collisions = [[indices[i] for i in particle_collisions] for particle_collisions in
+                                   collisions_rearranged]
     return reversed_indices_collisions
 
 
