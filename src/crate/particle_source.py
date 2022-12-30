@@ -11,6 +11,7 @@ class ParticleSource:
     position: list[float]
     velocity: list[float]
     flow: float
+    active_ticks: int
     noise: float = 0.05
 
     def generate_particles(self, dt: float, max_particles: int) -> tuple[Optional[NDArray], Optional[NDArray]]:

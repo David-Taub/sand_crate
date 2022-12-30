@@ -13,7 +13,7 @@ from crate.load_config import CONFIG_FILE_PATH, load_config
 from crate.utils.types import Particles, Segments
 from src.crate.utils.pygame_utils import draw_arrow
 
-SCROLL_ZOOM_FACTOR = 0.5
+SCROLL_ZOOM_FACTOR = 0.2
 SCREEN_X = 1000
 SCREEN_Y = 1000
 TEXT_MARGIN = 6
@@ -70,7 +70,7 @@ class Playback:
     def draw_scene(self):
         self.screen.fill(BACKGROUND_COLOR)
         self.draw_particles(self.crate.particles, self.crate.particle_radius, self.crate.particles_pressure,
-                            show_indices=True)
+                            show_indices=False)
         self.draw_segments(self.crate.segments)
         self.draw_debug_arrows()
         self.draw_debug_text(self.crate.debug_prints)
@@ -127,6 +127,7 @@ class Playback:
             if event.type == pygame.MOUSEMOTION:
                 if event.buttons[0]:
                     self.translate(pygame.Vector2(*event.rel))
+                    self.draw_scene()
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RIGHT:
                     self.crate.gravity = np.array([9.81, 0.0])
@@ -212,7 +213,7 @@ class Playback:
         makes the point under the mouse stay at the same place after zoom
         """
         mouse_pos = pygame.Vector2(*pygame.mouse.get_pos())
-        new_zoom_factor = self.zoom_factor * 1 + scale_direction * SCROLL_ZOOM_FACTOR
+        new_zoom_factor = self.zoom_factor + self.zoom_factor * scale_direction * SCROLL_ZOOM_FACTOR
         zooms_ratio = new_zoom_factor / self.zoom_factor
         zoom_center_target = (1 - 1 / zooms_ratio) * mouse_pos + (1 / zooms_ratio) * ORIGINAL_SCREEN_CENTER
 

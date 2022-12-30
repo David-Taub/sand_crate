@@ -128,12 +128,15 @@ class Crate:
 
     def set_debug_prints(self) -> None:
         self.debug_prints = f"Tick: {self.tick}\n"
+        self.debug_prints += f"Particles: {self.particle_count}\n"
         self.debug_prints += self.debug_timer.report()
         self.debug_prints += f"\n\n{self.force_monitor.report()}"
         self.debug_prints += f"\n\n{self.get_coefficient_debug()}"
 
     def create_new_particles(self) -> None:
         for particle_source in self.particle_sources:
+            if particle_source.active_ticks <= self.tick:
+                continue
             new_particles, new_particle_velocities = particle_source.generate_particles(
                 dt=self.dt, max_particles=self.max_particles - self.particle_count
             )
@@ -198,10 +201,11 @@ class Crate:
         for i in range(self.particle_count):
             if self.virtual_colliders[i].shape[0] == 0:
                 continue
-            corrections = self.virtual_colliders[i] * (
-                    self.particle_radius / (np.linalg.norm(self.virtual_colliders[i], axis=1)) - 0.5)
+            virtual_relative_distance = self.particle_radius / np.linalg.norm(self.virtual_colliders[i], axis=1)
+            virtual_relative_distance[virtual_relative_distance < 0.5] = 0.5
+            corrections = self.virtual_colliders[i] * (virtual_relative_distance[:, None] - 0.5)
             correction = np.sum(corrections, axis=0)
-            self.debug_arrows.append((self.particles[i], correction))
+            # self.debug_arrows.append((self.particles[i], correction))
             self.particles[i] += correction
 
     def calc_virtual_colliders(self) -> None:
