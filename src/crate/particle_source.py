@@ -22,3 +22,7 @@ class ParticleSource:
         particle_velocities = np.ones_like(particles) * np.array(self.velocity)[None]
         particle_velocities += (np.random.rand(particle_count, 2) - 0.5) * self.noise
         return particles, particle_velocities
+
+
+def build_particle_sources(particle_source_configs):
+    return [ParticleSource(**config) for config in particle_source_configs]

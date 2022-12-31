@@ -1,0 +1,52 @@
+playback:
+  save_recording: True
+  ticks_to_record: 3000
+  recording_output_dir_path: "../data/recordings"
+  screen_x: 1000
+  screen_y: 1000
+
+world:
+  coefficients:
+    dt: 0.002
+    particle_radius: 0.005
+    wall_collision_decay: 0.2
+    spring_overlap_balance: 0.5
+    spring_amplifier: 100
+    pressure_amplifier: 30
+    ignored_pressure: 0.3
+    collider_noise_level: 0.1
+    viscosity: 8
+    max_particles: 4000
+    surface_smoothing: 100
+    target_pressure: -2
+    gravity: [ 0, 9.8 ]
+
+  particle_sources:
+    - radius: 0.3
+      position: [ 0.05, 0.95 ]
+      velocity: [ 3, 0.0 ]
+      flow: 7000
+      noise: 0.0
+      active_ticks: 500
+
+  rigid_bodies:
+    - fixed:
+        name: edge
+        segments: [
+          [ [ 0.0, 0.0 ], [ 0.0, 1.0 ] ],
+          [ [ 0.0, 0.0 ], [ 1.0, 0.0 ] ],
+          [ [ 1.0, 0.0 ], [ 1.0, 1.0 ] ],
+          [ [ 0.0, 1.0 ], [ 1.0, 1.0 ] ],
+        ]
+    - motored:
+        name: moving_wall
+        segments: [
+          [ [ 0.0, 0.0 ], [ 0.0, -1.0 ] ],
+          [ [ 0.0, 0.0 ], [ -1.0, 0.0 ] ],
+          [ [ -1.0, 0.0 ], [ -1.0, -1.0 ] ],
+          [ [ 0.0, -1.0 ], [ -1.0, -1.0 ] ],
+        ]
+        angular_velocity_func: "lambda t: np.cos(t * 8) * 1.5"
+        scale: [ 0.02, 0.9 ]
+        rotation: -12
+        position: [ 1.0, 1.3 ]

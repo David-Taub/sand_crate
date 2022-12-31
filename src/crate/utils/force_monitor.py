@@ -7,7 +7,7 @@ import yaml
 if TYPE_CHECKING:
     from src.crate.crate import Crate
 
-DECAY = 0.95
+DECAY = 0.80
 
 
 class ForceMonitor:

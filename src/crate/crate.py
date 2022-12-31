@@ -4,7 +4,8 @@ from nptyping import NDArray
 
 from .collision_detector import detect_particle_collisions
 from .load_config import WorldConfig
-from .rigid_body import FixedRigidBody, MotoredRigidBody
+from .particle_source import build_particle_sources
+from .rigid_body import FixedRigidBody, MotoredRigidBody, build_rigid_bodies
 from .utils.force_monitor import ForceMonitor
 from .utils.geometry_utils import points_to_segments_distance, segments_crossings, calc_collision_point, pad_segments
 from .utils.timer import Timer
@@ -36,8 +37,8 @@ class Crate:
         self.force_monitor = ForceMonitor(self)
 
         self.world_config = world_config
-        self.rigid_bodies = world_config.rigid_bodies
-        self.particle_sources = world_config.particle_sources
+        self.rigid_bodies = build_rigid_bodies(self.world_config.rigid_bodies)
+        self.particle_sources = build_particle_sources(self.world_config.particle_sources)
         self.particle_radius = None
         self.dt = None
         self.wall_collision_decay = None
@@ -67,7 +68,7 @@ class Crate:
 
     @property
     def segments(self) -> Segments:
-        return np.vstack(rigid_body.segments for rigid_body in self.rigid_bodies)
+        return np.vstack([rigid_body.segments for rigid_body in self.rigid_bodies])
 
     def rigid_bodies_points_velocities(self, points: NDArray, segments_mask: NDArray) -> Velocities:
         checked_segments = 0

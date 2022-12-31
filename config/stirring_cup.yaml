@@ -1,6 +1,6 @@
 playback:
   save_recording: True
-  ticks_to_record: 5000
+  ticks_to_record: 500
   recording_output_dir_path: "../data/recordings"
   screen_x: 1000
   screen_y: 1000
@@ -16,7 +16,7 @@ world:
     ignored_pressure: 0.3
     collider_noise_level: 0.1
     viscosity: 8
-    max_particles: 1000
+    max_particles: 600
     surface_smoothing: 100
     target_pressure: -2
     gravity: [ 0, 9.8 ]

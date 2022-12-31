@@ -6,6 +6,7 @@ import pygame
 from nptyping import NDArray
 
 from .utils.geometry_utils import rotate_vectors_clockwise_90_deg
+from .utils.objects_utils import deep_copy
 from .utils.types import Points, Velocities
 
 Segment = tuple[float, float]
@@ -19,9 +20,10 @@ class RigidBody:
     segments: NDArray  # segments x dots(2) x dims(2)
     name: str = ""
     center_velocity: NDArray = np.array([0.0, 0.0])
-    angular_clockwise_velocity: float = 0.00  # assumed small. if not, we should use the sine on this value*
+    angular_clockwise_velocity: float = 0.0  # assumed small. if not, we should use the sine on this value*
     scale: pygame.Vector2 = field(default_factory=lambda: [1.0, 1.0])
     position: pygame.Vector2 = field(default_factory=lambda: [0.0, 0.0])
+    rotation: float = 0.0
 
     def calc_body_points_velocities(self, body_points: Points) -> Velocities:
         # N x 2
@@ -33,6 +35,8 @@ class RigidBody:
 
     def place_in_world(self):
         self.segments *= np.array(self.scale)[None]
+        self.segments[:, 0, :] = np.array([pygame.Vector2(*p).rotate(self.rotation) for p in self.segments[:, 0, :]])
+        self.segments[:, 1, :] = np.array([pygame.Vector2(*p).rotate(self.rotation) for p in self.segments[:, 1, :]])
         self.segments += np.array(self.position)[None]
 
     def apply_velocity(self, dt: float) -> None:
@@ -62,3 +66,26 @@ class MotoredRigidBody(RigidBody):
         self.center_velocity = self.velocity_func(self.time_from_start)  # noqa
         self.angular_clockwise_velocity = self.angular_velocity_func(self.time_from_start)  # noqa
         super(MotoredRigidBody, self).apply_velocity(dt)
+
+
+def build_rigid_bodies(body_configs: list) -> list[RigidBody]:
+    rigid_bodies = []
+    for body_config in deep_copy(body_configs):
+        body_type, kwargs = next(iter(body_config.items()))
+        body_class = BODY_TYPE_TO_CLASS[body_type]
+        if "segments" in kwargs:
+            kwargs["segments"] = np.array(kwargs["segments"])
+        if "velocity" in kwargs:
+            kwargs["velocity"] = np.array(kwargs["velocity"])
+        if "velocity_func" in kwargs:
+            kwargs["velocity_func"] = eval(kwargs["velocity_func"])
+        if "angular_velocity_func" in kwargs:
+            kwargs["angular_velocity_func"] = eval(kwargs["angular_velocity_func"])
+        rigid_body = body_class(**kwargs)
+        rigid_body.place_in_world()
+        rigid_bodies.append(rigid_body)
+
+    return rigid_bodies
+
+
+BODY_TYPE_TO_CLASS = {"motored": MotoredRigidBody, "fixed": FixedRigidBody, "free": RigidBody}

@@ -1,13 +1,14 @@
-import shutil
 import time
 from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 from typing import Optional
 
+import cv2
 import numpy as np
 import pygame
-import zarr as zarr
+import yaml
+from PIL import Image
 from nptyping import NDArray
 from tqdm.rich import tqdm
 
@@ -15,6 +16,7 @@ from crate.crate import Crate
 from crate.load_config import load_config
 from crate.utils.pygame_utils import draw_arrow
 from crate.utils.types import Particles, Segments
+from src.crate.utils.objects_utils import deep_dictify
 
 SCROLL_ZOOM_FACTOR = 0.2
 TEXT_MARGIN = 6
@@ -29,7 +31,6 @@ DEBUG_TEXT_COLOR = pygame.Color(255, 255, 255)
 
 class Playback:
     def __init__(self, config_file_path: Path, recording_dir_path: Optional[Path] = None) -> None:
-        self.config_file_path = config_file_path
         self.config = load_config(config_file_path=config_file_path)
         if recording_dir_path is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -45,27 +46,22 @@ class Playback:
         self.current_physical_field_index: int = 0
         self.zoom_center = self.screen_original_center.copy()
         self.zoom_factor = 1.0
+        self.frames: list[Image] = []
 
     def run_live_simulation(self) -> None:
         self.init_display()
         num_of_ticks = self.config.playback_config.ticks_to_record
-        if self.config.playback_config.save_recording:
-            particles_recording = np.zeros([num_of_ticks, self.crate.max_particles, 2])
-            segments_recording = np.zeros([num_of_ticks] + list(self.crate.segments.shape))
-        for frame_index in tqdm(range(num_of_ticks)):
+        for _ in tqdm(range(num_of_ticks)):
             self.handle_play_control()
             self.handle_input()
             self.crate.physics_tick()
-            if self.config.playback_config.save_recording:
-                particles_recording[frame_index, : self.crate.particle_count] = self.crate.particles
-                segments_recording[frame_index] = self.crate.segments
             self.draw_scene()
             if self.done:
                 break
 
         if self.config.playback_config.save_recording:
-            self.save_recording(particles_recording, segments_recording, self.recording_dir_path, self.config_file_path)
-            self.play_recording()
+            # self.save_recording(particles_recording, segments_recording, self.recording_dir_path)
+            self.save_recording(self.recording_dir_path)
         pygame.quit()
 
     def init_display(self):
@@ -82,8 +78,11 @@ class Playback:
                             show_indices=False)
         self.draw_segments(self.crate.segments)
         self.draw_debug_arrows()
-        self.draw_debug_text(self.crate.debug_prints)
+        # self.draw_debug_text(self.crate.debug_prints)
         pygame.display.update()
+        raw_str = pygame.image.tostring(self.screen, 'RGB', False)
+        frame = Image.frombytes('RGB', self.screen.get_size(), raw_str)
+        self.frames.append(frame)
 
     def handle_play_control(self) -> None:
         while self.pause and not self.done:
@@ -107,27 +106,36 @@ class Playback:
                 head_height=2
             )
 
-    @staticmethod
-    def save_recording(particles_recording: NDArray, segments_recording: NDArray,
-                       recording_output_dir_path: Path, config_file_path: Path) -> None:
-        zarr.save(str(Path(recording_output_dir_path) / "particles"), particles_recording)
-        zarr.save(str(Path(recording_output_dir_path) / "segments"), segments_recording)
-        shutil.copy(config_file_path, recording_output_dir_path)
+    def save_recording(self,
+                       # particles_recording: NDArray, segments_recording: NDArray,
+                       recording_output_dir_path: Path) -> None:
+        # zarr.save(str(recording_output_dir_path / "particles"), particles_recording)
+        # zarr.save(str(recording_output_dir_path / "segments"), segments_recording)
+        recording_output_dir_path.mkdir(exist_ok=True, parents=True)
+        with open(recording_output_dir_path / "config.yaml", "w") as f:
+            yaml.safe_dump(deep_dictify(self.config), f)
+        self.save_frames_to_avi(recording_output_dir_path)
+        self.save_frames_to_gif(recording_output_dir_path)
 
-    def play_recording(self) -> None:
-        particles_recording = zarr.load(str(self.recording_dir_path / "particles"))
-        segments_recording = zarr.load(str(self.recording_dir_path / "segments"))
-        self.init_display()
-        while not self.done:
-            for particles, segments in zip(particles_recording, segments_recording):
-                self.screen.fill(BACKGROUND_COLOR)
-                self.handle_input()
-                self.draw_particles(particles, self.crate.particle_radius)
-                self.draw_segments(segments)
-                pygame.display.update()
-                if self.done:
-                    break
-        pygame.quit()
+    def save_frames_to_avi(self, recording_output_dir_path: Path):
+        height, width = self.frames[0].size[:2]
+        avi_file_path = (recording_output_dir_path / "video.avi").resolve()
+        fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        video = cv2.VideoWriter(str(avi_file_path), fourcc, 50, (width, height), 1)
+
+        for frame in self.frames:
+            video.write(np.array(frame)[:, :, ::-1].astype(np.uint8))
+        video.release()
+        print("file:///" + str(avi_file_path))
+
+    def save_frames_to_gif(self, recording_output_dir_path: Path):
+        gif_file_path = recording_output_dir_path / 'video.gif'
+        gif_file_path = gif_file_path.resolve()
+        self.frames[0].save(gif_file_path, format='GIF',
+                            append_images=self.frames[1:],
+                            save_all=True,
+                            duration=10, loop=0)
+        print("file:///" + str(gif_file_path))
 
     def handle_input(self) -> None:
         for event in pygame.event.get():
@@ -235,3 +243,77 @@ class Playback:
     @cached_property
     def screen_original_center(self) -> pygame.Vector2:
         return pygame.Vector2(self.config.playback_config.screen_x, self.config.playback_config.screen_y) / 2
+
+#
+# from PIL import Image
+# import pygame
+# import glob
+# import os
+# from random import choice
+#
+# pygame.init()
+# screen = pygame.display.set_mode((800, 600))
+# pygame.display.set_caption("Trace")
+# clock = pygame.time.Clock()
+#
+# loop = True
+# press = False
+# color = "white"
+# cnt = 0
+# [os.remove(png) for png in glob.glob("*png")]
+# blue = (0, 0, 255)
+# yellow = (0, 255, 0)
+# red = (255, 0, 0)
+# color = (255, 255, 255)
+# while loop:
+#     try:
+#         # pygame.mouse.set_visible(False)
+#         for event in pygame.event.get():
+#             if event.type == pygame.QUIT:
+#                 loop = False
+#             if event.type == pygame.KEYDOWN:
+#                 if event.key == pygame.K_b:
+#                     color = blue
+#                 if event.key == pygame.K_y:
+#                     color = yellow
+#                 if event.key == pygame.K_r:
+#                     color = red
+#                 if event.key == pygame.K_w:
+#                     color = (255, 255, 255)
+#                 if event.key == pygame.K_d:
+#                     screen.fill(pygame.Color(0, 0, 0))
+#                 if event.key == pygame.K_s:
+#                     if cnt < 10:
+#                         pygame.image.save(screen, f"screenshot0{cnt}.png")
+#                     else:
+#                         pygame.image.save(screen, f"screenshot{cnt}.png")
+#                     cnt += 1
+#                 if event.key == pygame.K_g:
+#                     frames = []
+#                     imgs = glob.glob("*.png")
+#                     for i in imgs:
+#                         new_frame = Image.open(i)
+#                         frames.append(new_frame)
+#
+#                     # Save into a GIF file that loops forever
+#                     frames[0].save('animated.gif', format='GIF',
+#                                    append_images=frames[1:],
+#                                    save_all=True,
+#                                    duration=300, loop=0)
+#                     os.startfile("animated.gif")
+#
+#         px, py = pygame.mouse.get_pos()
+#         if pygame.mouse.get_pressed() == (1, 0, 0):
+#             pygame.draw.ellipse(screen, color, (px, py, 10, 10))
+#         if pygame.mouse.get_pressed() == (0, 0, 1):
+#             pygame.draw.rect(screen, (0, 0, 0), (px, py, 10, 10))
+#
+#         if event.type == pygame.MOUSEBUTTONUP:
+#             press == False
+#         pygame.display.update()
+#         clock.tick(100)
+#     except Exception as e:
+#         print(e)
+#         pygame.quit()
+#
+# pygame.quit()
