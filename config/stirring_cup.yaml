@@ -1,6 +1,6 @@
 playback:
   save_recording: True
-  ticks_to_record: 500
+  ticks_to_record: 1200
   recording_output_dir_path: "../data/recordings"
   screen_x: 1000
   screen_y: 1000

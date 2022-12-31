@@ -13,7 +13,7 @@ from nptyping import NDArray
 from tqdm.rich import tqdm
 
 from crate.crate import Crate
-from crate.load_config import load_config
+from crate.load_config import Config
 from crate.utils.pygame_utils import draw_arrow
 from crate.utils.types import Particles, Segments
 from src.crate.utils.objects_utils import deep_dictify
@@ -30,8 +30,8 @@ DEBUG_TEXT_COLOR = pygame.Color(255, 255, 255)
 
 
 class Playback:
-    def __init__(self, config_file_path: Path, recording_dir_path: Optional[Path] = None) -> None:
-        self.config = load_config(config_file_path=config_file_path)
+    def __init__(self, config: Config, recording_dir_path: Optional[Path] = None) -> None:
+        self.config = config
         if recording_dir_path is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.recording_dir_path = self.config.playback_config.recording_output_dir_path / f"{timestamp}"
@@ -78,7 +78,7 @@ class Playback:
                             show_indices=False)
         self.draw_segments(self.crate.segments)
         self.draw_debug_arrows()
-        # self.draw_debug_text(self.crate.debug_prints)
+        self.draw_debug_text(self.crate.debug_prints)
         pygame.display.update()
         raw_str = pygame.image.tostring(self.screen, 'RGB', False)
         frame = Image.frombytes('RGB', self.screen.get_size(), raw_str)
